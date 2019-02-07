@@ -23,64 +23,24 @@ var EParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
 var EInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
 var EInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
 
-const (
-	Private KeyPrivacy = 1 << iota
-	Public
-)
-
-const (
-	EC KeyType = 1 << iota
-	RSA
-)
-
-type KeyType uint
-type KeyPrivacy uint
-
 // PrivateKey acts as the missing would-be interface crypto.PrivateKey
 type PrivateKey interface {
 	Public() crypto.PublicKey
 }
 
-// JWK is to be used where either a public or private key may exist
-type Key interface {
-	Privacy() KeyPrivacy
-	Type() KeyType
-}
-
-type PublicJWK struct {
-	// TODO PEM Fingerprint
-	//BareJWK    string `json:"-"`
-	thumbprint thumbstr `json:"thumbprint"`
-	jwk        jwkstr   `json:"jwk"`
-	x          string
-	y          string
-}
-
-func (p *PublicJWK) Thumbprint() string {
-	return string(p.thumbprint)
-}
-func (p *PublicJWK) JWK() string {
-	return string(p.jwk)
-}
-
-type thumbstr string
-type jwkstr string
-
-func PackPublicJWK(key crypto.PublicKey) (pub PublicJWK) {
+func MarshalPublicJWK(key crypto.PublicKey) []byte {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
 	switch k := key.(type) {
 	case *rsa.PublicKey:
-		pub = MarshalRSAPublicKey(k)
+		return MarshalRSAPublicKey(k)
 	case *ecdsa.PublicKey:
-		pub = MarshalECPublicKey(k)
+		return MarshalECPublicKey(k)
 	case *dsa.PublicKey:
 		panic(EInvalidPublicKey)
 	default:
 		// this is unreachable because we know the types that we pass in
 		panic(EInvalidPublicKey)
 	}
-
-	return
 }
 
 func ThumbprintPublicKey(pub crypto.PublicKey) string {
@@ -94,38 +54,42 @@ func ThumbprintPublicKey(pub crypto.PublicKey) string {
 	}
 }
 
-func MarshalECPublicKey(k *ecdsa.PublicKey) PublicJWK {
-	pub := PublicJWK{}
-	pub.thumbprint = thumbstr(ThumbprintECPublicKey(k))
+func MarshalECPublicKey(k *ecdsa.PublicKey) []byte {
+	thumb := ThumbprintECPublicKey(k)
 	crv := k.Curve.Params().Name
 	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
 	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
-	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, pub.Thumbprint(), crv, x, y))
-	return pub
+	return []byte(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, thumb, crv, x, y))
+}
+
+func MarshalECPublicKeyWithoutKeyID(k *ecdsa.PublicKey) []byte {
+	crv := k.Curve.Params().Name
+	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
+	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
+	return []byte(fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, crv, x, y))
 }
 
 func ThumbprintECPublicKey(k *ecdsa.PublicKey) string {
-	crv := k.Curve.Params().Name
-	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
-	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
-	thumbprintable := []byte(fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, crv, x, y))
+	thumbprintable := MarshalECPublicKeyWithoutKeyID(k)
 	sha := sha256.Sum256(thumbprintable)
 	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
 
-func MarshalRSAPublicKey(p *rsa.PublicKey) PublicJWK {
-	pub := PublicJWK{}
-	pub.thumbprint = thumbstr(ThumbprintRSAPublicKey(p))
+func MarshalRSAPublicKey(p *rsa.PublicKey) []byte {
+	thumb := ThumbprintRSAPublicKey(p)
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
 	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
-	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, pub.Thumbprint(), e, n))
-	return pub
+	return []byte(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, thumb, e, n))
+}
+
+func MarshalRSAPublicKeyWithoutKeyID(p *rsa.PublicKey) []byte {
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
+	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
+	return []byte(fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, e, n))
 }
 
 func ThumbprintRSAPublicKey(p *rsa.PublicKey) string {
-	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
-	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
-	thumbprintable := fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, e, n)
+	thumbprintable := MarshalRSAPublicKeyWithoutKeyID(p)
 	sha := sha256.Sum256([]byte(thumbprintable))
 	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
