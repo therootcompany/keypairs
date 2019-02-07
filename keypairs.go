@@ -16,6 +16,13 @@ import (
 	"math/big"
 )
 
+var EInvalidPrivateKey = errors.New("PrivateKey must be of type rsa.PrivateKey or ecdsa.PrivateKey")
+var EInvalidPublicKey = errors.New("PublicKey must be of type rsa.PublicKey or ecdsa.PublicKey")
+var EParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM or DER (PKCS8, SEC1, or PKCS1) or JWK")
+var EParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
+var EInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
+var EInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
+
 const (
 	Private KeyPrivacy = 1 << iota
 	Public
@@ -57,23 +64,13 @@ func (p *PublicJWK) JWK() string {
 type thumbstr string
 type jwkstr string
 
-func FromPublic(key crypto.PublicKey) (pub PublicJWK) {
+func PackPublicJWK(key crypto.PublicKey) (pub PublicJWK) {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
 	switch k := key.(type) {
 	case *rsa.PublicKey:
-		e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(k.E)).Bytes())
-		n := base64.RawURLEncoding.EncodeToString(k.N.Bytes())
-		thumbprintable := fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, e, n)
-		sha := sha256.Sum256([]byte(thumbprintable))
-		pub.thumbprint = thumbstr(base64.RawURLEncoding.EncodeToString(sha[:]))
-		pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, pub.Thumbprint(), e, n))
+		pub = packPublicRSAJWK(k)
 	case *ecdsa.PublicKey:
-		x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
-		y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
-		thumbprintable := fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, k.Curve, x, y)
-		sha := sha256.Sum256([]byte(thumbprintable))
-		pub.thumbprint = thumbstr(base64.RawURLEncoding.EncodeToString(sha[:]))
-		pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, pub.Thumbprint(), k.Curve, x, y))
+		pub = packPublicECJWK(k)
 	case *dsa.PublicKey:
 		panic(EInvalidPublicKey)
 	default:
@@ -84,12 +81,25 @@ func FromPublic(key crypto.PublicKey) (pub PublicJWK) {
 	return
 }
 
-var EInvalidPrivateKey = errors.New("PrivateKey must be of type rsa.PrivateKey or ecdsa.PrivateKey")
-var EInvalidPublicKey = errors.New("PublicKey must be of type rsa.PublicKey or ecdsa.PublicKey")
-var EParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM or DER (PKCS8, SEC1, or PKCS1) or JWK")
-var EParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
-var EInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
-var EInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
+func packPublicECJWK(k *ecdsa.PublicKey) (pub PublicJWK) {
+	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
+	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
+	thumbprintable := fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, k.Curve, x, y)
+	sha := sha256.Sum256([]byte(thumbprintable))
+	pub.thumbprint = thumbstr(base64.RawURLEncoding.EncodeToString(sha[:]))
+	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, pub.Thumbprint(), k.Curve, x, y))
+	return
+}
+
+func packPublicRSAJWK(k *rsa.PublicKey) (pub PublicJWK) {
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(k.E)).Bytes())
+	n := base64.RawURLEncoding.EncodeToString(k.N.Bytes())
+	thumbprintable := fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, e, n)
+	sha := sha256.Sum256([]byte(thumbprintable))
+	pub.thumbprint = thumbstr(base64.RawURLEncoding.EncodeToString(sha[:]))
+	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, pub.Thumbprint(), e, n))
+	return
+}
 
 func ParsePrivateKey(block []byte) (key PrivateKey, err error) {
 	var pemblock *pem.Block
@@ -148,6 +158,25 @@ func parsePrivateKey(der []byte) (key PrivateKey) {
 	return
 }
 
+func ParseJWKPublicKey(b []byte) (key crypto.PublicKey, err error) {
+	var m map[string]string
+	err = json.Unmarshal(b, &m)
+	if nil != err {
+		return
+	}
+
+	switch m["kty"] {
+	case "RSA":
+		key, err = parsePublicRSAJWK(m)
+	case "EC":
+		key, err = parsePublicECJWK(m)
+	default:
+		err = EInvalidKeyType
+	}
+
+	return
+}
+
 func ParseJWKPrivateKey(b []byte) (key PrivateKey, err error) {
 	var m map[string]string
 	err = json.Unmarshal(b, &m)
@@ -167,20 +196,31 @@ func ParseJWKPrivateKey(b []byte) (key PrivateKey, err error) {
 	return
 }
 
-func parsePrivateRSAJWK(m map[string]string) (key *rsa.PrivateKey, err error) {
+func parsePublicRSAJWK(m map[string]string) (pub *rsa.PublicKey, err error) {
 	n, _ := base64.RawURLEncoding.DecodeString(m["n"])
 	e, _ := base64.RawURLEncoding.DecodeString(m["e"])
 	if 0 == len(n) || 0 == len(e) {
-		return nil, EParseJWK
+		err = EParseJWK
+		return
 	}
 	ni := &big.Int{}
 	ni.SetBytes(n)
 	ei := &big.Int{}
 	ei.SetBytes(e)
 
-	pub := rsa.PublicKey{
+	pub = &rsa.PublicKey{
 		N: ni,
 		E: int(ei.Int64()),
+	}
+	return
+}
+
+func parsePrivateRSAJWK(m map[string]string) (key *rsa.PrivateKey, err error) {
+	var pub *rsa.PublicKey
+
+	pub, err = parsePublicRSAJWK(m)
+	if nil != err {
+		return
 	}
 
 	d, _ := base64.RawURLEncoding.DecodeString(m["d"])
@@ -207,7 +247,7 @@ func parsePrivateRSAJWK(m map[string]string) (key *rsa.PrivateKey, err error) {
 	qinvi.SetBytes(qinv)
 
 	key = &rsa.PrivateKey{
-		PublicKey: pub,
+		PublicKey: *pub,
 		D:         di,
 		Primes:    []*big.Int{pi, qi},
 		Precomputed: rsa.PrecomputedValues{
@@ -220,7 +260,7 @@ func parsePrivateRSAJWK(m map[string]string) (key *rsa.PrivateKey, err error) {
 	return
 }
 
-func parsePrivateECJWK(m map[string]string) (key *ecdsa.PrivateKey, err error) {
+func parsePublicECJWK(m map[string]string) (pub *ecdsa.PublicKey, err error) {
 	x, _ := base64.RawURLEncoding.DecodeString(m["n"])
 	y, _ := base64.RawURLEncoding.DecodeString(m["e"])
 	if 0 == len(x) || 0 == len(y) || 0 == len(m["crv"]) {
@@ -246,10 +286,21 @@ func parsePrivateECJWK(m map[string]string) (key *ecdsa.PrivateKey, err error) {
 		return
 	}
 
-	pub := ecdsa.PublicKey{
+	pub = &ecdsa.PublicKey{
 		Curve: crv,
 		X:     xi,
 		Y:     yi,
+	}
+
+	return
+}
+
+func parsePrivateECJWK(m map[string]string) (key *ecdsa.PrivateKey, err error) {
+	var pub *ecdsa.PublicKey
+
+	pub, err = parsePublicECJWK(m)
+	if nil != err {
+		return
 	}
 
 	d, _ := base64.RawURLEncoding.DecodeString(m["d"])
@@ -260,7 +311,7 @@ func parsePrivateECJWK(m map[string]string) (key *ecdsa.PrivateKey, err error) {
 	di.SetBytes(d)
 
 	key = &ecdsa.PrivateKey{
-		PublicKey: pub,
+		PublicKey: *pub,
 		D:         di,
 	}
 
