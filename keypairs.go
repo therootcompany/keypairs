@@ -70,7 +70,7 @@ func PackPublicJWK(key crypto.PublicKey) (pub PublicJWK) {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
 	switch k := key.(type) {
 	case *rsa.PublicKey:
-		pub = marshalRSAPublicKey(k)
+		pub = MarshalRSAPublicKey(k)
 	case *ecdsa.PublicKey:
 		pub = MarshalECPublicKey(k)
 	case *dsa.PublicKey:
@@ -83,31 +83,51 @@ func PackPublicJWK(key crypto.PublicKey) (pub PublicJWK) {
 	return
 }
 
+func ThumbprintPublicKey(pub crypto.PublicKey) string {
+	switch p := pub.(type) {
+	case *ecdsa.PublicKey:
+		return ThumbprintECPublicKey(p)
+	case *rsa.PublicKey:
+		return ThumbprintRSAPublicKey(p)
+	default:
+		panic(EInvalidPublicKey)
+	}
+}
+
 func MarshalECPublicKey(k *ecdsa.PublicKey) PublicJWK {
 	pub := PublicJWK{}
 	pub.thumbprint = thumbstr(ThumbprintECPublicKey(k))
+	crv := k.Curve.Params().Name
 	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
 	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
-	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, pub.Thumbprint(), k.Curve, x, y))
+	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, pub.Thumbprint(), crv, x, y))
 	return pub
 }
 
 func ThumbprintECPublicKey(k *ecdsa.PublicKey) string {
+	crv := k.Curve.Params().Name
 	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
 	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
-	thumbprintable := []byte(fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, k.Curve, x, y))
+	thumbprintable := []byte(fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, crv, x, y))
 	sha := sha256.Sum256(thumbprintable)
 	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
 
-func marshalRSAPublicKey(k *rsa.PublicKey) (pub PublicJWK) {
-	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(k.E)).Bytes())
-	n := base64.RawURLEncoding.EncodeToString(k.N.Bytes())
+func MarshalRSAPublicKey(p *rsa.PublicKey) PublicJWK {
+	pub := PublicJWK{}
+	pub.thumbprint = thumbstr(ThumbprintRSAPublicKey(p))
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
+	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
+	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, pub.Thumbprint(), e, n))
+	return pub
+}
+
+func ThumbprintRSAPublicKey(p *rsa.PublicKey) string {
+	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
+	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
 	thumbprintable := fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, e, n)
 	sha := sha256.Sum256([]byte(thumbprintable))
-	pub.thumbprint = thumbstr(base64.RawURLEncoding.EncodeToString(sha[:]))
-	pub.jwk = jwkstr(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, pub.Thumbprint(), e, n))
-	return
+	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
 
 func ParsePrivateKey(block []byte) (PrivateKey, error) {
@@ -130,9 +150,6 @@ func ParsePrivateKey(block []byte) (PrivateKey, error) {
 		}
 	}
 
-	//fmt.Println("Blocks:")
-	//fmt.Println(blocks)
-
 	// Parse PEM blocks (openssl generates junk metadata blocks for ECs)
 	// or the original DER, or the JWK
 	for i, _ := range blocks {
@@ -149,6 +166,7 @@ func ParsePrivateKey(block []byte) (PrivateKey, error) {
 func parsePrivateKey(der []byte) (PrivateKey, error) {
 	var key PrivateKey
 
+	//fmt.Println("1. ParsePKCS8PrivateKey")
 	xkey, err := x509.ParsePKCS8PrivateKey(der)
 	if nil == err {
 		switch k := xkey.(type) {
@@ -160,17 +178,16 @@ func parsePrivateKey(der []byte) (PrivateKey, error) {
 			// ignore nil and unknown key types
 		}
 	}
-	fmt.Println("1. ParsePKCS8PrivateKey")
 
 	if nil != err {
+		//fmt.Println("2. ParseECPrivateKey")
 		key, err = x509.ParseECPrivateKey(der)
-		fmt.Println("2. ParseECPrivateKey")
 		if nil != err {
+			//fmt.Println("3. ParsePKCS1PrivateKey")
 			key, err = x509.ParsePKCS1PrivateKey(der)
-			fmt.Println("3. ParsePKCS1PrivateKey")
 			if nil != err {
+				//fmt.Println("4. ParseJWKPrivateKey")
 				key, err = ParseJWKPrivateKey(der)
-				fmt.Println("4. ParseJWKPrivateKey")
 			}
 		}
 	}
