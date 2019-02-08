@@ -20,8 +20,8 @@ func TestFetchOIDCPublicKeys(t *testing.T) {
 			t.Fatal(url, err)
 		}
 
-		for i := range keys {
-			switch key := keys[i].(type) {
+		for kid := range keys {
+			switch key := keys[kid].Key().(type) {
 			case *rsa.PublicKey:
 				_ = ThumbprintRSAPublicKey(key)
 			case *ecdsa.PublicKey:

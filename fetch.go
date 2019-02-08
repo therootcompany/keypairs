@@ -12,12 +12,13 @@ import (
 
 var EInvalidJWKURL = errors.New("url does not lead to valid JWKs")
 
-func FetchOIDCPublicKeys(host string) ([]crypto.PublicKey, error) {
+// FetchOIDCPublicKeys fetches baseURL + ".well-known/openid-configuration" and then returns FetchPublicKeys(jwks_uri).
+func FetchOIDCPublicKeys(baseURL string) (map[string]PublicKey, error) {
 	oidcConf := struct {
 		JWKSURI string `json:"jwks_uri"`
 	}{}
 	// must come in as https://<domain>/
-	url := host + ".well-known/openid-configuration"
+	url := baseURL + ".well-known/openid-configuration"
 	err := safeFetch(url, func(body io.Reader) error {
 		return json.NewDecoder(body).Decode(&oidcConf)
 	})
@@ -28,8 +29,9 @@ func FetchOIDCPublicKeys(host string) ([]crypto.PublicKey, error) {
 	return FetchPublicKeys(oidcConf.JWKSURI)
 }
 
-func FetchPublicKeys(jwksurl string) ([]crypto.PublicKey, error) {
-	var keys []crypto.PublicKey
+// FetchPublicKeys returns a map of keys identified by their kid or thumbprint (if kid is not specified)
+func FetchPublicKeys(jwksurl string) (map[string]PublicKey, error) {
+	keys := map[string]PublicKey{}
 	resp := struct {
 		Keys []map[string]interface{} `json:"keys"`
 	}{
@@ -59,13 +61,14 @@ func FetchPublicKeys(jwksurl string) ([]crypto.PublicKey, error) {
 		if key, err := NewJWKPublicKey(n); nil != err {
 			return nil, err
 		} else {
-			keys = append(keys, key)
+			keys[key.Thumbprint()] = key
 		}
 	}
 
 	return keys, nil
 }
 
+// FetchPublicKey retrieves a JWK from a URL that specifies only one
 func FetchPublicKey(url string) (crypto.PublicKey, error) {
 	var m map[string]string
 	if err := safeFetch(url, func(body io.Reader) error {
@@ -79,6 +82,7 @@ func FetchPublicKey(url string) (crypto.PublicKey, error) {
 
 type decodeFunc func(io.Reader) error
 
+// TODO: also limit the body size
 func safeFetch(url string, decoder decodeFunc) error {
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
