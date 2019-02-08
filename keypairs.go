@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 )
 
@@ -166,23 +167,53 @@ func parsePrivateKey(der []byte) (PrivateKey, error) {
 	return key, nil
 }
 
-func ParseJWKPublicKey(b []byte) (crypto.PublicKey, error) {
-	m := make(map[string]string)
-	err := json.Unmarshal(b, &m)
-	if nil != err {
-		return nil, err
-	}
-
+func NewJWKPublicKey(m map[string]string) (crypto.PublicKey, error) {
 	switch m["kty"] {
 	case "RSA":
 		return parseRSAPublicKey(m)
 	case "EC":
 		return parseECPublicKey(m)
 	default:
-		err = EInvalidKeyType
+		return nil, EInvalidKeyType
+	}
+}
+
+func ParseJWKPublicKey(b []byte) (crypto.PublicKey, error) {
+	return newJWKPublicKey(b)
+}
+
+func ParseJWKPublicKeyString(s string) (crypto.PublicKey, error) {
+	return newJWKPublicKey(s)
+}
+
+func DecodeJWKPublicKey(r io.Reader) (crypto.PublicKey, error) {
+	return newJWKPublicKey(r)
+}
+
+func newJWKPublicKey(data interface{}) (crypto.PublicKey, error) {
+	var m map[string]string
+
+	switch d := data.(type) {
+	case map[string]string:
+		m = d
+	case io.Reader:
+		m = make(map[string]string)
+		if err := json.NewDecoder(d).Decode(&m); nil != err {
+			return nil, err
+		}
+	case string:
+		if err := json.Unmarshal([]byte(d), &m); nil != err {
+			return nil, err
+		}
+	case []byte:
+		if err := json.Unmarshal(d, &m); nil != err {
+			return nil, err
+		}
+	default:
+		panic("Developer Error: unsupported interface type")
 	}
 
-	return nil, err
+	return NewJWKPublicKey(m)
 }
 
 func ParseJWKPrivateKey(b []byte) (PrivateKey, error) {
