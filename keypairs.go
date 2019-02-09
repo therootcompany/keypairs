@@ -19,8 +19,8 @@ import (
 	"time"
 )
 
-var EInvalidPrivateKey = errors.New("PrivateKey must be of type rsa.PrivateKey or ecdsa.PrivateKey")
-var EInvalidPublicKey = errors.New("PublicKey must be of type rsa.PublicKey or ecdsa.PublicKey")
+var EInvalidPrivateKey = errors.New("PrivateKey must be of type *rsa.PrivateKey or *ecdsa.PrivateKey")
+var EInvalidPublicKey = errors.New("PublicKey must be of type *rsa.PublicKey or *ecdsa.PublicKey")
 var EParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM or DER (PKCS8, SEC1, or PKCS1) or JWK")
 var EParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
 var EInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
@@ -60,15 +60,22 @@ func (p *ECPublicKey) Thumbprint() string {
 func (p *ECPublicKey) Key() crypto.PublicKey {
 	return p.PublicKey
 }
+func (p *ECPublicKey) ExpireAt(t time.Time) {
+	p.Expiry = t
+}
+
 func (p *RSAPublicKey) Thumbprint() string {
 	return ThumbprintUntypedPublicKey(p.PublicKey)
 }
 func (p *RSAPublicKey) Key() crypto.PublicKey {
 	return p.PublicKey
 }
+func (p *RSAPublicKey) ExpireAt(t time.Time) {
+	p.Expiry = t
+}
 
 // TypesafePublicKey wraps a crypto.PublicKey to make it typesafe.
-func NewPublicKey(pub crypto.PublicKey, exp time.Time, kid ...string) PublicKey {
+func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 	var k PublicKey
 	switch p := pub.(type) {
 	case *ecdsa.PublicKey:
@@ -80,7 +87,6 @@ func NewPublicKey(pub crypto.PublicKey, exp time.Time, kid ...string) PublicKey 
 		} else {
 			eckey.KID = k.Thumbprint()
 		}
-		eckey.Expiry = exp
 		k = eckey
 	case *rsa.PublicKey:
 		rsakey := &RSAPublicKey{
@@ -91,7 +97,6 @@ func NewPublicKey(pub crypto.PublicKey, exp time.Time, kid ...string) PublicKey 
 		} else {
 			rsakey.KID = k.Thumbprint()
 		}
-		rsakey.Expiry = exp
 		k = rsakey
 	case *ecdsa.PrivateKey:
 		panic(errors.New(EDevSwapPrivatePublic))
@@ -108,13 +113,13 @@ func NewPublicKey(pub crypto.PublicKey, exp time.Time, kid ...string) PublicKey 
 	return k
 }
 
-func MarshalJWKPublicKey(key PublicKey) []byte {
+func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
 	switch k := key.Key().(type) {
 	case *rsa.PublicKey:
-		return MarshalRSAPublicKey(k)
+		return MarshalRSAPublicKey(k, exp...)
 	case *ecdsa.PublicKey:
-		return MarshalECPublicKey(k)
+		return MarshalECPublicKey(k, exp...)
 	case *dsa.PublicKey:
 		panic(EInvalidPublicKey)
 	default:
@@ -139,12 +144,16 @@ func ThumbprintUntypedPublicKey(pub crypto.PublicKey) string {
 	}
 }
 
-func MarshalECPublicKey(k *ecdsa.PublicKey) []byte {
+func MarshalECPublicKey(k *ecdsa.PublicKey, exp ...time.Time) []byte {
 	thumb := ThumbprintECPublicKey(k)
 	crv := k.Curve.Params().Name
 	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
 	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
-	return []byte(fmt.Sprintf(`{"kid":%q,"crv":%q,"kty":"EC","x":%q,"y":%q}`, thumb, crv, x, y))
+	expstr := ""
+	if 0 != len(exp) {
+		expstr = fmt.Sprintf(`"exp":%q,`, exp[0].Format(time.RFC3339))
+	}
+	return []byte(fmt.Sprintf(`{"kid":%q,%s"crv":%q,"kty":"EC","x":%q,"y":%q}`, expstr, thumb, crv, x, y))
 }
 
 func MarshalECPublicKeyWithoutKeyID(k *ecdsa.PublicKey) []byte {
@@ -160,11 +169,15 @@ func ThumbprintECPublicKey(k *ecdsa.PublicKey) string {
 	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
 
-func MarshalRSAPublicKey(p *rsa.PublicKey) []byte {
+func MarshalRSAPublicKey(p *rsa.PublicKey, exp ...time.Time) []byte {
 	thumb := ThumbprintRSAPublicKey(p)
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
 	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
-	return []byte(fmt.Sprintf(`{"kid":%q,"e":%q,"kty":"RSA","n":%q}`, thumb, e, n))
+	expstr := ""
+	if 0 != len(exp) {
+		expstr = fmt.Sprintf(`"exp":%q,`, exp[0].Format(time.RFC3339))
+	}
+	return []byte(fmt.Sprintf(`{"kid":%q,%s"e":%q,"kty":"RSA","n":%q}`, expstr, thumb, e, n))
 }
 
 func MarshalRSAPublicKeyWithoutKeyID(p *rsa.PublicKey) []byte {
