@@ -85,7 +85,7 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 		if 0 != len(kid) {
 			eckey.KID = kid[0]
 		} else {
-			eckey.KID = k.Thumbprint()
+			eckey.KID = ThumbprintECPublicKey(p)
 		}
 		k = eckey
 	case *rsa.PublicKey:
@@ -95,7 +95,7 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 		if 0 != len(kid) {
 			rsakey.KID = kid[0]
 		} else {
-			rsakey.KID = k.Thumbprint()
+			rsakey.KID = ThumbprintRSAPublicKey(p)
 		}
 		k = rsakey
 	case *ecdsa.PrivateKey:
