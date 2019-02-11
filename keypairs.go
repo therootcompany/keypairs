@@ -151,7 +151,7 @@ func MarshalECPublicKey(k *ecdsa.PublicKey, exp ...time.Time) []byte {
 	y := base64.RawURLEncoding.EncodeToString(k.Y.Bytes())
 	expstr := ""
 	if 0 != len(exp) {
-		expstr = fmt.Sprintf(`"exp":%q,`, exp[0].Format(time.RFC3339))
+		expstr = fmt.Sprintf(`"exp":%d,`, exp[0].Unix())
 	}
 	return []byte(fmt.Sprintf(`{"kid":%q,%s"crv":%q,"kty":"EC","x":%q,"y":%q}`, expstr, thumb, crv, x, y))
 }
@@ -175,7 +175,7 @@ func MarshalRSAPublicKey(p *rsa.PublicKey, exp ...time.Time) []byte {
 	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
 	expstr := ""
 	if 0 != len(exp) {
-		expstr = fmt.Sprintf(`"exp":%q,`, exp[0].Format(time.RFC3339))
+		expstr = fmt.Sprintf(`"exp":%d,`, exp[0].Unix())
 	}
 	return []byte(fmt.Sprintf(`{"kid":%q,%s"e":%q,"kty":"RSA","n":%q}`, expstr, thumb, e, n))
 }
