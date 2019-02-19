@@ -15,7 +15,7 @@ func TestFetchOIDCPublicKeys(t *testing.T) {
 	}
 	for i := range urls {
 		url := urls[i]
-		keys, err := FetchOIDCPublicKeys(url)
+		_, keys, err := fetchOIDCPublicKeys(url)
 		if nil != err {
 			t.Fatal(url, err)
 		}
@@ -31,4 +31,12 @@ func TestFetchOIDCPublicKeys(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestCachesKey(t *testing.T) {
+	// Raw fetch a key and get KID and Thumbprint
+	// Look in cache for each (and fail)
+	// Get with caching
+	// Look in cache for each (and succeed)
+	// Get again (should be sub-ms instant)
 }
