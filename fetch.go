@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -20,6 +21,28 @@ type CachableKey struct {
 	Key    PublicKey
 	Expiry time.Time
 }
+
+// TODO use this poor-man's enum to allow kids thumbs to be accepted by the same method
+/*
+type KeyID string
+
+func (kid KeyID) ID() string {
+	return string(kid)
+}
+func (kid KeyID) isID() {}
+
+type Thumbprint string
+
+func (thumb Thumbprint) ID() string {
+	return string(thumb)
+}
+func (thumb Thumbprint) isID() {}
+
+type ID interface {
+	ID() string
+	isID()
+}
+*/
 
 var StaleTime = 15 * time.Minute
 var DefaultKeyDuration = 48 * time.Hour
@@ -39,7 +62,7 @@ func fetchAndCacheOIDCPublicKeys(baseURL string) (map[string]map[string]string, 
 	if maps, keys, err := fetchOIDCPublicKeys(baseURL); nil != err {
 		return nil, nil, err
 	} else {
-		cacheKeys(maps, keys)
+		cacheKeys(maps, keys, baseURL)
 		return maps, keys, err
 	}
 }
@@ -72,16 +95,11 @@ func fetchOIDCPublicKey(id, baseURL string, fetcher func(string) (map[string]map
 		return nil, err
 	}
 
-	var pub PublicKey
-	var ok bool // because interfaces are never nil
-
 	for i := range keys {
 		key := keys[i]
 
 		if id == key.Thumbprint() {
-			pub = key
-			ok = true
-			break
+			return key, nil
 		}
 
 		var kid string
@@ -94,14 +112,8 @@ func fetchOIDCPublicKey(id, baseURL string, fetcher func(string) (map[string]map
 			panic(errors.New("Developer Error: Only ECPublicKey and RSAPublicKey are handled"))
 		}
 		if id == kid {
-			pub = key
-			ok = true
-			break
+			return key, nil
 		}
-	}
-
-	if ok {
-		return pub, nil
 	}
 
 	return nil, fmt.Errorf("Key identified by '%s' was not found at %s", id, baseURL)
@@ -112,7 +124,7 @@ func FetchPublicKeys(jwksurl string) (map[string]PublicKey, error) {
 	if maps, keys, err := fetchPublicKeys(jwksurl); nil != err {
 		return nil, err
 	} else {
-		cacheKeys(maps, keys)
+		cacheKeys(maps, keys, strings.Replace(jwksurl, ".well-known/jwks.json", "", 1))
 		return keys, err
 	}
 }
@@ -156,7 +168,14 @@ func FetchPublicKey(url string) (PublicKey, error) {
 		return nil, err
 	}
 
-	cacheKey(m["kid"], m["iss"], m["exp"], key)
+	maps := map[string]map[string]string{}
+	maps[key.Thumbprint()] = m
+
+	keys := map[string]PublicKey{}
+	keys[key.Thumbprint()] = key
+
+	cacheKeys(maps, keys, url)
+
 	return key, nil
 }
 
@@ -180,31 +199,46 @@ func fetchPublicKey(url string) (map[string]string, PublicKey, error) {
 }
 
 func hasPublicKey(kid, iss string) (*CachableKey, bool) {
-	now := time.Now()
 	id := kid + "@" + iss
 
 	KeyCacheMux.Lock()
 	hit, ok := KeyCache[id]
 	KeyCacheMux.Unlock()
 
-	if ok && hit.Expiry.Sub(now) > 0 {
+	if now := time.Now(); ok && hit.Expiry.Sub(now) > 0 {
 		return &hit, true
 	}
 
 	return nil, false
 }
 
-func GetPublicKey(kid, iss string) (PublicKey, error) {
+// it would be a security risk to pass kid as a thumbprint
+func hasPublicKeyByThumbprint(thumb string) (*CachableKey, bool) {
+	KeyCacheMux.Lock()
+	hit, ok := KeyCache[thumb]
+	KeyCacheMux.Unlock()
+
+	if now := time.Now(); ok && hit.Expiry.Sub(now) > 0 {
+		return &hit, true
+	}
+
+	return nil, false
+}
+
+func GetPublicKey(kidOrThumb, iss string) (PublicKey, error) {
 	now := time.Now()
-	key, ok := hasPublicKey(kid, iss)
+	key, ok := hasPublicKeyByThumbprint(kidOrThumb)
 
 	if !ok {
-		return FetchOIDCPublicKey(kid, iss)
+		key, ok = hasPublicKey(kidOrThumb, iss)
+		if !ok {
+			return FetchOIDCPublicKey(kidOrThumb, iss)
+		}
 	}
 
 	// Fetch just a little before the key actually expires
 	if key.Expiry.Sub(now) <= StaleTime {
-		go FetchOIDCPublicKey(kid, iss)
+		go FetchOIDCPublicKey(kidOrThumb, iss)
 	}
 
 	return key.Key, nil
@@ -231,8 +265,14 @@ var cacheKey = func(kid, iss, expstr string, pub PublicKey) error {
 		Key:    pub,
 		Expiry: expiry,
 	}
-	id = pub.Thumbprint() + "@" + iss
+	thumb := pub.Thumbprint()
+	id = thumb + "@" + iss
 	KeyCache[id] = CachableKey{
+		Key:    pub,
+		Expiry: expiry,
+	}
+	// Since thumbprints are crypto secure, iss is not strictly needed
+	KeyCache[thumb] = CachableKey{
 		Key:    pub,
 		Expiry: expiry,
 	}
@@ -241,16 +281,21 @@ var cacheKey = func(kid, iss, expstr string, pub PublicKey) error {
 	return nil
 }
 
-func cacheKeys(maps map[string]map[string]string, keys map[string]PublicKey) {
+func cacheKeys(maps map[string]map[string]string, keys map[string]PublicKey, issuer string) {
 	for i := range keys {
 		key := keys[i]
 		m := maps[i]
-		cacheKey(m["kid"], m["iss"], m["exp"], key)
+		if "" != m["iss"] {
+			issuer = m["iss"]
+		}
+		cacheKey(m["kid"], strings.TrimRight(issuer, "/"), m["exp"], key)
 	}
 }
 
 func getStringMap(m map[string]interface{}) map[string]string {
 	n := make(map[string]string)
+
+	// TODO get issuer from x5c, if exists
 
 	// convert map[string]interface{} to map[string]string
 	for j := range m {
