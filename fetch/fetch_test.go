@@ -1,4 +1,4 @@
-package keypairs
+package fetch
 
 import (
 	"crypto/ecdsa"
@@ -6,13 +6,14 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	keypairs "github.com/big-squid/go-keypairs"
 )
 
 func TestFetchOIDCPublicKeys(t *testing.T) {
 	urls := []string{
 		//"https://bigsquid.auth0.com/.well-known/jwks.json",
 		"https://bigsquid.auth0.com/",
-		"https://api-dev.bigsquid.com/",
 	}
 	for i := range urls {
 		url := urls[i]
@@ -24,9 +25,9 @@ func TestFetchOIDCPublicKeys(t *testing.T) {
 		for kid := range keys {
 			switch key := keys[kid].Key().(type) {
 			case *rsa.PublicKey:
-				_ = ThumbprintRSAPublicKey(key)
+				_ = keypairs.ThumbprintRSAPublicKey(key)
 			case *ecdsa.PublicKey:
-				_ = ThumbprintECPublicKey(key)
+				_ = keypairs.ThumbprintECPublicKey(key)
 			default:
 				t.Fatal(errors.New("unsupported interface type"))
 			}
@@ -46,7 +47,7 @@ func TestCachesKey(t *testing.T) {
 		t.Fatal("Should discover 1 or more keys via", url)
 	}
 
-	var key PublicKey
+	var key keypairs.PublicKey
 	for i := range keys {
 		key = keys[i]
 		break
