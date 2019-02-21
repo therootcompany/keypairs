@@ -81,7 +81,7 @@ func (p *RSAPublicKey) ExpireAt(t time.Time) {
 	p.Expiry = t
 }
 
-// TypesafePublicKey wraps a crypto.PublicKey to make it typesafe.
+// NewPublicKey wraps a crypto.PublicKey to make it typesafe.
 func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 	var k PublicKey
 	switch p := pub.(type) {

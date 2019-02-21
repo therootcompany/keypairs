@@ -1,45 +1,18 @@
-package fetch
+package keyfetch
 
 import (
-	"crypto/ecdsa"
-	"crypto/rsa"
-	"errors"
 	"testing"
 	"time"
 
 	keypairs "github.com/big-squid/go-keypairs"
+	"github.com/big-squid/go-keypairs/keyfetch/uncached"
 )
-
-func TestFetchOIDCPublicKeys(t *testing.T) {
-	urls := []string{
-		//"https://bigsquid.auth0.com/.well-known/jwks.json",
-		"https://bigsquid.auth0.com/",
-	}
-	for i := range urls {
-		url := urls[i]
-		_, keys, err := fetchOIDCPublicKeys(url)
-		if nil != err {
-			t.Fatal(url, err)
-		}
-
-		for kid := range keys {
-			switch key := keys[kid].Key().(type) {
-			case *rsa.PublicKey:
-				_ = keypairs.ThumbprintRSAPublicKey(key)
-			case *ecdsa.PublicKey:
-				_ = keypairs.ThumbprintECPublicKey(key)
-			default:
-				t.Fatal(errors.New("unsupported interface type"))
-			}
-		}
-	}
-}
 
 func TestCachesKey(t *testing.T) {
 	url := "https://bigsquid.auth0.com/"
 
 	// Raw fetch a key and get KID and Thumbprint
-	_, keys, err := fetchOIDCPublicKeys(url)
+	_, keys, err := uncached.OIDCJWKs(url)
 	if nil != err {
 		t.Fatal(url, err)
 	}
@@ -55,26 +28,23 @@ func TestCachesKey(t *testing.T) {
 	thumb := key.Thumbprint()
 
 	// Look in cache for each (and fail)
-	if _, ok := hasPublicKeyByThumbprint(thumb); ok {
+	if pub := Get(thumb, ""); nil != pub {
 		t.Fatal("SANITY: Should not have any key cached by thumbprint")
-	}
-	if _, ok := hasPublicKey(key.KeyID(), url); ok {
-		t.Fatal("SANITY: Should not have any key cached by kid")
 	}
 
 	// Get with caching
-	k2, err := GetPublicKey(thumb, url)
+	k2, err := OIDCJWK(thumb, url)
 	if nil != err {
 		t.Fatal("Error fetching and caching key:", err)
 	}
 
 	// Look in cache for each (and succeed)
-	if _, ok := hasPublicKeyByThumbprint(thumb); !ok {
-		t.Fatal("key was not properly cached by thumbprint")
+	if pub := Get(thumb, ""); nil == pub {
+		t.Fatal("key was not properly cached by thumbprint", thumb)
 	}
 	if "" != k2.KeyID() {
-		if _, ok := hasPublicKeyByThumbprint(thumb); !ok {
-			t.Fatal("key was not properly cached by thumbprint")
+		if pub := Get(k2.KeyID(), url); nil == pub {
+			t.Fatal("key was not properly cached by kid", k2.KeyID())
 		}
 	} else {
 		t.Log("Key did not have an explicit KeyID")
@@ -82,7 +52,7 @@ func TestCachesKey(t *testing.T) {
 
 	// Get again (should be sub-ms instant)
 	now := time.Now()
-	_, err = GetPublicKey(thumb, url)
+	_, err = OIDCJWK(thumb, url)
 	if nil != err {
 		t.Fatal("SANITY: Failed to get the key we just got...", err)
 	}
