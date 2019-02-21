@@ -20,13 +20,13 @@ All keys are cached by Thumbprint, as well as kid(@issuer), if available.
 	import "github.com/big-squid/go-keypairs/keyfetch"
 
 	pubs, err := keyfetch.OIDCJWKs("https://example.com/")
-	pubs, err := keyfetch.OIDCJWK(keyIDOrThumb, "https://example.com/")
+	pubs, err := keyfetch.OIDCJWK(ThumbOrKeyID, "https://example.com/")
 
 	pubs, err := keyfetch.WellKnownJWKs("https://example.com/")
-	pubs, err := keyfetch.WellKnownJWK(keyIDOrThumb, "https://example.com/")
+	pubs, err := keyfetch.WellKnownJWK(ThumbOrKeyID, "https://example.com/")
 
 	pubs, err := keyfetch.JWKs("https://example.com/path/to/jwks/")
-	pubs, err := keyfetch.JWK(keyIDOrThumb, "https://example.com/path/to/jwks/)
+	pubs, err := keyfetch.JWK(ThumbOrKeyID, "https://example.com/path/to/jwks/)
 
 	pubs, err := keyfetch.Get("https://example.com/jwk.json)
 
