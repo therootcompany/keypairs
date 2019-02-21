@@ -26,9 +26,13 @@ All keys are cached by Thumbprint, as well as kid(@issuer), if available.
 	pubs, err := keyfetch.WellKnownJWK(ThumbOrKeyID, "https://example.com/")
 
 	pubs, err := keyfetch.JWKs("https://example.com/path/to/jwks/")
-	pubs, err := keyfetch.JWK(ThumbOrKeyID, "https://example.com/path/to/jwks/)
+	pubs, err := keyfetch.JWK(ThumbOrKeyID, "https://example.com/path/to/jwks/")
 
-	pubs, err := keyfetch.Get("https://example.com/jwk.json)
+	// From URL
+	pub, err := keyfetch.Fetch("https://example.com/jwk.json")
+
+	// From Cache only
+	pub := keyfetch.Get(thumbprint, "https://example.com/jwk.json")
 
 A non-caching version with the same capabilities is also available.
 
