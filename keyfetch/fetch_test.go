@@ -9,8 +9,12 @@ import (
 )
 
 func TestCachesKey(t *testing.T) {
-	url := "https://bigsquid.auth0.com/"
+	testCachesKey(t, "https://bigsquid.auth0.com/")
+	clear()
+	testCachesKey(t, "https://bigsquid.auth0.com")
+}
 
+func testCachesKey(t *testing.T, url string) {
 	// Raw fetch a key and get KID and Thumbprint
 	_, keys, err := uncached.OIDCJWKs(url)
 	if nil != err {

@@ -123,6 +123,7 @@ func Get(kidOrThumb, iss string) keypairs.PublicKey {
 }
 
 func get(kidOrThumb, iss string) *CachableKey {
+	iss = normalizeIssuer(iss)
 	KeyCacheMux.Lock()
 	defer KeyCacheMux.Unlock()
 
@@ -136,7 +137,7 @@ func get(kidOrThumb, iss string) *CachableKey {
 		}
 	}
 
-	id := kidOrThumb + "@" + strings.TrimRight(iss, "/")
+	id := kidOrThumb + "@" + normalizeIssuer(iss)
 	hit, ok = KeyCache[id]
 	if ok {
 		if now := time.Now(); hit.Expiry.Sub(now) > 0 {
@@ -192,15 +193,17 @@ func cacheKeys(maps map[string]map[string]string, keys map[string]keypairs.Publi
 	for i := range keys {
 		key := keys[i]
 		m := maps[i]
+		iss := issuer
 		if "" != m["iss"] {
-			issuer = m["iss"]
+			iss = m["iss"]
 		}
-		cacheKey(m["kid"], strings.TrimRight(issuer, "/"), m["exp"], key)
+		cacheKey(m["kid"], iss, m["exp"], key)
 	}
 }
 
 func cacheKey(kid, iss, expstr string, pub keypairs.PublicKey) error {
 	var expiry time.Time
+	iss = normalizeIssuer(iss)
 
 	exp, _ := strconv.ParseInt(expstr, 10, 64)
 	if 0 == exp {
@@ -229,4 +232,14 @@ func cacheKey(kid, iss, expstr string, pub keypairs.PublicKey) error {
 	}
 
 	return nil
+}
+
+func clear() {
+	KeyCacheMux.Lock()
+	defer KeyCacheMux.Unlock()
+	KeyCache = map[string]CachableKey{}
+}
+
+func normalizeIssuer(iss string) string {
+	return strings.TrimRight(iss, "/") + "/"
 }

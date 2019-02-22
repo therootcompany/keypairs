@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	keypairs "github.com/big-squid/go-keypairs"
@@ -13,6 +14,7 @@ import (
 
 // OIDCJWKs gets the OpenID Connect configuration from the baseURL and then calls JWKs with the specified jwks_uri
 func OIDCJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
+	baseURL = normalizeBaseURL(baseURL)
 	oidcConf := struct {
 		JWKSURI string `json:"jwks_uri"`
 	}{}
@@ -33,6 +35,7 @@ func OIDCJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs
 
 // WellKnownJWKs calls JWKs with baseURL + /.well-known/jwks.json as constructs the jwks_uri
 func WellKnownJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
+	baseURL = normalizeBaseURL(baseURL)
 	if '/' == baseURL[len(baseURL)-1] {
 		baseURL = baseURL[:len(baseURL)-1]
 	}
@@ -133,4 +136,8 @@ func safeFetch(url string, decoder decodeFunc) error {
 	defer res.Body.Close()
 
 	return decoder(res.Body)
+}
+
+func normalizeBaseURL(iss string) string {
+	return strings.TrimRight(iss, "/") + "/"
 }
