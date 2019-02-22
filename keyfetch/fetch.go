@@ -83,7 +83,8 @@ func JWKs(jwksurl string) (publicKeysMap, error) {
 	if maps, keys, err := uncached.JWKs(jwksurl); nil != err {
 		return nil, err
 	} else {
-		cacheKeys(maps, keys, strings.Replace(jwksurl, ".well-known/jwks.json", "", 1))
+		iss := strings.Replace(jwksurl, ".well-known/jwks.json", "", 1)
+		cacheKeys(maps, keys, iss)
 		return keys, err
 	}
 }
@@ -197,6 +198,7 @@ func cacheKeys(maps map[string]map[string]string, keys map[string]keypairs.Publi
 		if "" != m["iss"] {
 			iss = m["iss"]
 		}
+		iss = normalizeIssuer(iss)
 		cacheKey(m["kid"], iss, m["exp"], key)
 	}
 }
@@ -241,5 +243,5 @@ func clear() {
 }
 
 func normalizeIssuer(iss string) string {
-	return strings.TrimRight(iss, "/") + "/"
+	return strings.TrimRight(iss, "/")
 }

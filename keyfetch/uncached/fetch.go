@@ -36,11 +36,8 @@ func OIDCJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs
 // WellKnownJWKs calls JWKs with baseURL + /.well-known/jwks.json as constructs the jwks_uri
 func WellKnownJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
 	baseURL = normalizeBaseURL(baseURL)
-	if '/' == baseURL[len(baseURL)-1] {
-		baseURL = baseURL[:len(baseURL)-1]
-	}
 
-	return JWKs(baseURL + "/.well-known/jwks.json")
+	return JWKs(baseURL + ".well-known/jwks.json")
 }
 
 // JWKs fetches and parses a jwks.json (assuming well-known format)
