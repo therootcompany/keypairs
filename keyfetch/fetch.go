@@ -137,7 +137,7 @@ func get(kidOrThumb, iss string) *CachableKey {
 		}
 	}
 
-	id := kidOrThumb + "@" + normalizeIssuer(iss)
+	id := kidOrThumb + "@" + iss
 	hit, ok = KeyCache[id]
 	if ok {
 		if now := time.Now(); hit.Expiry.Sub(now) > 0 {
