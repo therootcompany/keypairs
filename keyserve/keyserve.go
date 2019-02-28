@@ -1,4 +1,4 @@
-package keydist
+package keyserve
 
 import (
 	"fmt"
