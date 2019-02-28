@@ -41,6 +41,7 @@ type PublicKey interface {
 	Thumbprint() string
 	KeyID() string
 	Key() crypto.PublicKey
+	ExpiresAt() time.Time
 }
 
 type ECPublicKey struct {
@@ -67,6 +68,9 @@ func (p *ECPublicKey) Key() crypto.PublicKey {
 func (p *ECPublicKey) ExpireAt(t time.Time) {
 	p.Expiry = t
 }
+func (p *ECPublicKey) ExpiresAt() time.Time {
+	return p.Expiry
+}
 
 func (p *RSAPublicKey) Thumbprint() string {
 	return ThumbprintUntypedPublicKey(p.PublicKey)
@@ -79,6 +83,9 @@ func (p *RSAPublicKey) Key() crypto.PublicKey {
 }
 func (p *RSAPublicKey) ExpireAt(t time.Time) {
 	p.Expiry = t
+}
+func (p *RSAPublicKey) ExpiresAt() time.Time {
+	return p.Expiry
 }
 
 // NewPublicKey wraps a crypto.PublicKey to make it typesafe.
