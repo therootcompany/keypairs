@@ -160,7 +160,7 @@ func MarshalECPublicKey(k *ecdsa.PublicKey, exp ...time.Time) []byte {
 	if 0 != len(exp) {
 		expstr = fmt.Sprintf(`"exp":%d,`, exp[0].Unix())
 	}
-	return []byte(fmt.Sprintf(`{"kid":%q,"use":"sig",%s"crv":%q,"kty":"EC","x":%q,"y":%q}`, expstr, thumb, crv, x, y))
+	return []byte(fmt.Sprintf(`{"kid":%q,"use":"sig",%s"crv":%q,"kty":"EC","x":%q,"y":%q}`, thumb, expstr, crv, x, y))
 }
 
 func MarshalECPublicKeyWithoutKeyID(k *ecdsa.PublicKey) []byte {
@@ -184,7 +184,7 @@ func MarshalRSAPublicKey(p *rsa.PublicKey, exp ...time.Time) []byte {
 	if 0 != len(exp) {
 		expstr = fmt.Sprintf(`"exp":%d,`, exp[0].Unix())
 	}
-	return []byte(fmt.Sprintf(`{"kid":%q,"use":"sig",%s"e":%q,"kty":"RSA","n":%q}`, expstr, thumb, e, n))
+	return []byte(fmt.Sprintf(`{"kid":%q,"use":"sig",%s"e":%q,"kty":"RSA","n":%q}`, thumb, expstr, e, n))
 }
 
 func MarshalRSAPublicKeyWithoutKeyID(p *rsa.PublicKey) []byte {
