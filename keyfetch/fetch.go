@@ -1,3 +1,11 @@
+// Package keyfetch retrieve and cache PublicKeys
+// from OIDC (https://example.com/.well-known/openid-configuration)
+// and Auth0 (https://example.com/.well-known/jwks.json)
+// JWKs URLs and expires them when `exp` is reached
+// (or a default expiry if the key does not provide one).
+// It uses the keypairs package to Unmarshal the JWKs into their
+// native types (with a very thin shim to provide the type safety
+// that Go's crypto.PublicKey and crypto.PrivateKey interfaces lack).
 package keyfetch
 
 import (

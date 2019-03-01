@@ -1,3 +1,7 @@
+// Package keyserve provides middleware to serve Public Keys
+// via OIDC-style (https://example.com/.well-known/openid-configuration)
+// and Auth0-style (https://example.com/.well-known/jwks.json)
+// URLs. It uses the keypairs package to encode to JWK format.
 package keyserve
 
 import (
