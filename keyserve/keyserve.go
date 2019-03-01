@@ -41,7 +41,8 @@ type Middleware struct {
 // for Content-Type, and it doesn't add practical benefit, so we omit it
 // (JSON _is_ utf-8, per spec, already).
 
-// Handler
+// Handler will match either OIDC or Auth0 jwks URLs and return true if it
+// matches on (and responds to) either. Otherwise it will return false.
 func (m *Middleware) Handler(w http.ResponseWriter, r *http.Request) bool {
 
 	if strings.HasSuffix(r.URL.Path, jwksURL.Path) {
@@ -68,6 +69,11 @@ func (m *Middleware) WellKnownOIDC(w http.ResponseWriter, r *http.Request) {
 		baseURL = *m.BaseURL
 	} else {
 		baseURL = *r.URL
+		if nil == r.TLS && "https" != r.Header.Get("X-Forwarded-Proto") {
+			baseURL.Scheme = "http"
+		} else {
+			baseURL.Scheme = "https"
+		}
 		baseURL.Host = r.Host
 		baseURL.Path = strings.TrimSuffix(baseURL.Path, oidcURL.Path)
 	}
@@ -76,7 +82,7 @@ func (m *Middleware) WellKnownOIDC(w http.ResponseWriter, r *http.Request) {
 	u := baseURL.ResolveReference(jwksURL)
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{ "issuer": %q, "jwks_uri": %q }`, baseURL, u)))
+	w.Write([]byte(fmt.Sprintf(`{ "issuer": %q, "jwks_uri": %q }`, baseURL.String(), u.String())))
 }
 
 // WellKnownJWKs serves a JSON array of keys, no fluff
