@@ -5,6 +5,10 @@
 package keyserve
 
 import (
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -20,14 +24,17 @@ var DefaultExpiresIn = 72 * time.Hour
 // JWKsPath is "/.well-known/jwks.json" (Auth0 spec)
 const JWKsPath = "/.well-known/jwks.json"
 
-// jwksURL is ".well-known/jwks.json" (Auth0 spec)
 var jwksURL, _ = url.Parse(".well-known/jwks.json")
 
 // OIDCPath is "/.well-known/openid-configuration" (OIDC spec)
 const OIDCPath = "/.well-known/openid-configuration"
 
-// oidcURL is ".well-known/openid-configuration" (OIDC spec)
 var oidcURL, _ = url.Parse(".well-known/openid-configuration")
+
+// Auth0PEMPath is "/pem" (Auth0 convention)
+const Auth0PEMPath = "/pem"
+
+var auth0PEMURL, _ = url.Parse("pem")
 
 // for convenience
 var notime time.Duration
@@ -49,22 +56,39 @@ type Middleware struct {
 // matches on (and responds to) either. Otherwise it will return false.
 func (m *Middleware) Handler(w http.ResponseWriter, r *http.Request) bool {
 
-	if strings.HasSuffix(r.URL.Path, jwksURL.Path) {
+	if strings.HasSuffix(r.URL.Path, JWKsPath) {
 		m.WellKnownJWKs(w, r)
 		return true
 	}
 
-	if strings.HasSuffix(r.URL.Path, oidcURL.Path) {
+	if strings.HasSuffix(r.URL.Path, OIDCPath) {
 		m.WellKnownOIDC(w, r)
+		return true
+	}
+
+	if strings.HasSuffix(r.URL.Path, Auth0PEMPath) {
+		m.Auth0PEM(w, r)
 		return true
 	}
 
 	return false
 }
 
-// WellKnownOIDC serves a minimal OIDC config for the purpose of distributing JWKs
-// if you need something more powerful, do it yourself.
+// WellKnownOIDC serves a minimal OIDC config for the purpose of distributing
+// JWKs if you need something more powerful, do it yourself.
 // (but feel free to copy the code here)
+//
+// Security Note: If you do not supply Middleware.BaseURL, it will be taken
+// from r.Host (since Web Browsers will always present it as the domain being
+// accessed, which is not the case with TLS.ServerName over HTTP/2).
+// This is normally not a problem because an attacker can only spoof back to
+// themselves the jwks_uri. HOWEVER (DANGER, DANGER WILL ROBINSON) - RED FLAG -
+// somewhere in the universe there is surely some old janky podunk proxy, still
+// in use today, which is vulnerable to basic cache poisening which could cause
+// others to receive a cached version of the malicious response rather than
+// hitting the server and getting the correct response. Unlikely that that's
+// you (and if it is you have much bigger problems), but I feel the need to
+// warn you all the same.
 func (m *Middleware) WellKnownOIDC(w http.ResponseWriter, r *http.Request) {
 	var baseURL url.URL
 
@@ -102,6 +126,30 @@ func (m *Middleware) WellKnownJWKs(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(fmt.Sprintf(`{"keys":[%s]}`, strings.Join(jwks, ","))))
+}
+
+// Auth0PEM serves a PEM containing a public key
+func (m *Middleware) Auth0PEM(w http.ResponseWriter, r *http.Request) {
+	// TODO serve a self-signed root certificate (like Auth0),
+	// with a proper expiration date, instead
+	w.Header().Set("Content-Type", "application/x-pem-file")
+
+	switch pub := m.Keys[0].Key().(type) {
+	case *rsa.PublicKey:
+		pem.Encode(w, &pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(pub),
+		})
+	case *ecdsa.PublicKey:
+		// skip error since we're type safe already
+		bytes, _ := x509.MarshalPKIXPublicKey(pub)
+		pem.Encode(w, &pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: bytes,
+		})
+	default:
+		w.Write([]byte("Sanity Error: Impossible key type"))
+	}
 }
 
 func marshalJWKs(keys []keypairs.PublicKey, exp2 time.Time) []string {
