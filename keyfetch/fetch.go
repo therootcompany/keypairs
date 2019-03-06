@@ -11,6 +11,8 @@ package keyfetch
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -252,4 +254,167 @@ func clear() {
 
 func normalizeIssuer(iss string) string {
 	return strings.TrimRight(iss, "/")
+}
+
+/*
+  IsTrustedIssuer returns true when the `iss` (i.e. from a token) matches one
+  in the provided whitelist (also matches wildcard domains).
+
+  You may explicitly allow insecure http (i.e. for automated testing) by
+  including http:// Otherwise the scheme in each item of the whitelist should
+	include the "https://" prefix.
+
+  SECURITY CONSIDERATIONS (Please Read)
+
+  You'll notice that *http.Request is optional. It should only be used under these
+  three circumstances:
+
+    1) Something else guarantees http -> https redirection happens before the
+       connection gets here AND this server directly handles TLS/SSL.
+
+    2) If you're using a load balancer or web server, and this doesn't handle
+       TLS/SSL directly, that server is _explicitly_ configured to protect
+       against Domain Fronting attacks. As of 2019, most web servers and load
+       balancers do not protect against that by default.
+
+    3) If you only use it to make your automated integration testing more
+       and it isn't enabled in production.
+
+  Otherwise, DO NOT pass in *http.Request as you will introduce a 0-day
+  vulnerability allowing an attacker to spoof any token issuer of their choice.
+  The only reason I allowed this in a public library where non-experts would
+  encounter it is to make testing easier.
+*/
+func IsTrustedIssuer(iss string, whitelist Whitelist, rs ...*http.Request) bool {
+	// Normalize the http:// and https:// and parse
+	iss = strings.TrimRight(iss, "/") + "/"
+	if strings.HasPrefix(iss, "http://") {
+		// ignore
+	} else if strings.HasPrefix(iss, "//") {
+		return false // TODO
+	} else if !strings.HasPrefix(iss, "https://") {
+		iss = "https://" + iss
+	}
+	issURL, err := url.Parse(iss)
+	if nil != err {
+		return false
+	}
+
+	// Check that
+	// * schemes match (https: == https:)
+	// * paths match (/foo/ == /foo/, always with trailing slash added)
+	// * hostnames are compatible (a == b or "sub.foo.com".HasSufix(".foo.com"))
+	for i := range []*url.URL(whitelist) {
+		u := whitelist[i]
+
+		if issURL.Scheme != u.Scheme {
+			continue
+		} else if u.Path != strings.TrimRight(issURL.Path, "/")+"/" {
+			continue
+		} else if issURL.Host != u.Host {
+			if '.' == u.Host[0] && strings.HasSuffix(issURL.Host, u.Host) {
+				return true
+			}
+			continue
+		}
+		// All failures have been handled
+		return true
+	}
+
+	// Check if implicit issuer is available
+	if 0 == len(rs) {
+		return false
+	}
+	return hasImplicitTrust(issURL, rs[0])
+}
+
+// hasImplicitTrust relies on the security of DNS and TLS to determine if the
+// headers of the request can be trusted as identifying the server itself as
+// a valid issuer, without additional configuration.
+//
+// Helpful for testing, but in the wrong hands could easily lead to a zero-day.
+func hasImplicitTrust(issURL *url.URL, r *http.Request) bool {
+	if nil == r {
+		return false
+	}
+
+	// Sanity check that, if a load balancer exists, it isn't misconfigured
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if "" != proto && proto != "https" {
+		return false
+	}
+
+	// Get the host
+	// * If TLS, block Domain Fronting
+	// * Otherwise assume trusted proxy
+	// * Otherwise assume test environment
+	var host string
+	if nil != r.TLS {
+		// Note that if this were to be implemented for HTTP/2 it would need to
+		// check all names on the certificate, not just the one with which the
+		// original connection was established. However, not our problem here.
+		// See https://serverfault.com/a/908087/93930
+		if r.TLS.ServerName != r.Host {
+			return false
+		}
+		host = r.Host
+	} else {
+		host = r.Header.Get("X-Forwarded-Host")
+		if "" == host {
+			host = r.Host
+		}
+	}
+
+	// Same tests as above, adjusted since it can't handle wildcards and, since
+	// the path is variable, we make the assumption that a child can trust a
+	// parent, but that a parent cannot trust a child.
+	if r.Host != issURL.Host {
+		return false
+	}
+	if !strings.HasPrefix(strings.TrimRight(r.URL.Path, "/")+"/", issURL.Path) {
+		// Ex: Request URL                                   Token Issuer
+		// !"https:example.com/johndoe/api/dothing".HasPrefix("https:example.com/")
+		return false
+	}
+
+	return true
+}
+
+// Whitelist
+type Whitelist []*url.URL
+
+// NewWhitelist turns an array of URLs (such as https://example.com/) into
+// a parsed array of *url.URLs that can be used by the IsTrustedIssuer function
+func NewWhitelist(issuers []string, insecures ...bool) (Whitelist, error) {
+	list := []*url.URL{}
+	insecure := false
+	if 0 != len(insecures) && insecures[0] {
+		insecure = true
+	}
+
+	for i := range issuers {
+		iss := issuers[i]
+		if strings.HasPrefix(iss, "http://") {
+			if !insecure {
+				return nil, errors.New("Oops! You have an insecure domain in your whitelist: " + iss)
+			}
+		} else if strings.HasPrefix(iss, "//") {
+			// TODO
+			return nil, errors.New("Rather than prefixing with // to support multiple protocols, add them seperately:" + iss)
+		} else if !strings.HasPrefix(iss, "https://") {
+			iss = "https://" + iss
+		}
+		// trailing slash as a boundary character, which may or may not denote a directory
+		iss = strings.TrimRight(iss, "/") + "/"
+		u, err := url.Parse(iss)
+		if nil != err {
+			return nil, err
+		}
+		if strings.HasPrefix(u.Host, "*.") {
+			u.Host = u.Host[1:]
+		}
+		list = append(list, u)
+	}
+
+	return Whitelist(list), nil
 }
