@@ -2,6 +2,8 @@ package keyfetch
 
 import (
 	"errors"
+	"net/http"
+	"net/url"
 	"testing"
 )
 
@@ -130,5 +132,59 @@ func TestIssuerMatches(t *testing.T) {
 	iss = "https://sub.west.mali"
 	if IsTrustedIssuer(iss, list) {
 		t.Fatal("A bad URL slipped past", iss)
+	}
+}
+
+func TestImplicitIssuer(t *testing.T) {
+	var r *http.Request
+	var iss string
+
+	r = &http.Request{
+		Host: "example.com",
+		URL:  &url.URL{Path: "/foo/bar/baz"},
+		Header: http.Header(map[string][]string{
+			"x-forwarded-host": []string{"example.com"},
+		}),
+	}
+	iss = "https://example.com/foo"
+	if !IsTrustedIssuer(iss, nil, r) {
+		t.Fatal("A good URL didn't make it:", iss)
+	}
+
+	r = &http.Request{
+		Host: "example.com",
+		URL:  &url.URL{Path: "/"},
+		Header: http.Header(map[string][]string{
+			"x-forwarded-host":  []string{"example.com"},
+			"x-forwarded-proto": []string{"http"},
+		}),
+	}
+	iss = "http://example.com/foo"
+	if IsTrustedIssuer(iss, nil, r) {
+		t.Fatal("A bad URL slipped past:", iss)
+	}
+
+	r = &http.Request{
+		Host: "example.com",
+		URL:  &url.URL{Path: "/foo"},
+		Header: http.Header(map[string][]string{
+			"x-forwarded-host": []string{"example.com"},
+		}),
+	}
+	iss = "https://example.com/foo/bar/baz"
+	if IsTrustedIssuer(iss, nil, r) {
+		t.Fatal("A bad URL slipped past:", iss)
+	}
+
+	r = &http.Request{
+		Host: "example.com",
+		URL:  &url.URL{Path: "/"},
+		Header: http.Header(map[string][]string{
+			"x-forwarded-proto": []string{"https"},
+		}),
+	}
+	iss = "https://example.com/"
+	if !IsTrustedIssuer(iss, nil, r) {
+		t.Fatal("A good URL didn't make it:", iss)
 	}
 }
