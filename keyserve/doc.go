@@ -5,7 +5,7 @@ via OIDC-style (https://example.com/.well-known/openid-configuration)
 and Auth0-style (https://example.com/.well-known/jwks.json)
 URLs. It uses the keypairs package to encode to JWK format.
 
-Basic usage:
+Basic Usage
 
 	import (
 		"crypto/ecdsa"
@@ -19,12 +19,16 @@ Basic usage:
 	pub := key.Public()
 
 	handlers := &keyserve.Middleware{
+
 		// the self-reference used for building the openid-configuration url
 		BaseURL: "https://example.com/",
+
 		// public keys used to verify token signatures
 		Keys: []keypairs.PublicKey{ keypairs.NewPublicKey(pub) }
+
 		// how long clients should cache your public key
 		ExpiresIn: 72 * time.Hour
+
 	}
 
 You can then use the handlers anywhere http.HandleFunc is allowed:

@@ -84,7 +84,7 @@ func (m *Middleware) Handler(w http.ResponseWriter, r *http.Request) bool {
 // others to receive a cached version of the malicious response rather than
 // hitting the server and getting the correct response. Unlikely that that's
 // you (and if it is you have much bigger problems), but I feel the need to
-// warn you all the same.
+// warn you all the same - so just be sure to specify BaseURL.
 func (m *Middleware) WellKnownOIDC(w http.ResponseWriter, r *http.Request) {
 	var baseURL url.URL
 
