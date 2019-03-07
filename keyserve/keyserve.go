@@ -1,7 +1,3 @@
-// Package keyserve provides middleware to serve Public Keys
-// via OIDC-style (https://example.com/.well-known/openid-configuration)
-// and Auth0-style (https://example.com/.well-known/jwks.json)
-// URLs. It uses the keypairs package to encode to JWK format.
 package keyserve
 
 import (
@@ -31,8 +27,8 @@ const OIDCPath = "/.well-known/openid-configuration"
 
 var oidcURL, _ = url.Parse(".well-known/openid-configuration")
 
-// Auth0PEMPath is "/pem" (Auth0 convention)
-const Auth0PEMPath = "/pem"
+// PEMPath is "/pem" (Auth0 convention)
+const PEMPath = "/pem"
 
 var auth0PEMURL, _ = url.Parse("pem")
 
@@ -66,7 +62,7 @@ func (m *Middleware) Handler(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 
-	if strings.HasSuffix(r.URL.Path, Auth0PEMPath) {
+	if strings.HasSuffix(r.URL.Path, PEMPath) {
 		m.Auth0PEM(w, r)
 		return true
 	}
