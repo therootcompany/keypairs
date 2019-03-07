@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"io/ioutil"
+	"log"
+	"net/http"
 	"testing"
 )
 
@@ -65,5 +67,21 @@ func TestParsePrivateKeyRSA(t *testing.T) {
 		if thumb != thumb2 {
 			t.Fatalf("RSA thumbprints do not match: %q, %q, %q", path, thumb, thumb2)
 		}
+	}
+}
+
+func TestParseCertificate(t *testing.T) {
+	resp, err := http.Get("http://bigsquid.auth0.com/pem")
+	if nil != err {
+		log.Fatal(err)
+	}
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if nil != err {
+		log.Fatal(err)
+	}
+	_, err = ParsePublicKey(bytes)
+	if nil != err {
+		log.Fatal("Could not parse PEM/cert from auth0")
+		log.Fatal(err)
 	}
 }

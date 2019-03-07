@@ -19,16 +19,17 @@ import (
 	"time"
 )
 
-var EInvalidPrivateKey = errors.New("PrivateKey must be of type *rsa.PrivateKey or *ecdsa.PrivateKey")
-var EInvalidPublicKey = errors.New("PublicKey must be of type *rsa.PublicKey or *ecdsa.PublicKey")
-var EParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM or DER (PKCS8, SEC1, or PKCS1) or JWK")
-var EParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
-var EInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
-var EInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
+var ErrInvalidPrivateKey = errors.New("PrivateKey must be of type *rsa.PrivateKey or *ecdsa.PrivateKey")
+var ErrInvalidPublicKey = errors.New("PublicKey must be of type *rsa.PublicKey or *ecdsa.PublicKey")
+var ErrParsePublicKey = errors.New("PublicKey bytes could not be parsed as PEM or DER (PKIX/SPKI, PKCS1, or X509 Certificate) or JWK")
+var ErrParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM or DER (PKCS8, SEC1, or PKCS1) or JWK")
+var ErrParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
+var ErrInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
+var ErrInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
 
-const EDevSwapPrivatePublic = "[Developer Error] You passed either crypto.PrivateKey or crypto.PublicKey where the other was expected."
+const ErrDevSwapPrivatePublic = "[Developer Error] You passed either crypto.PrivateKey or crypto.PublicKey where the other was expected."
 
-const EDevBadKeyType = "[Developer Error] crypto.PublicKey and crypto.PrivateKey are somewhat deceptive. They're actually empty interfaces that accept any object, even non-crypto objects. You passed an object of type '%T' by mistake."
+const ErrDevBadKeyType = "[Developer Error] crypto.PublicKey and crypto.PrivateKey are somewhat deceptive. They're actually empty interfaces that accept any object, even non-crypto objects. You passed an object of type '%T' by mistake."
 
 // PrivateKey is a zero-cost typesafe substitue for crypto.PrivateKey
 type PrivateKey interface {
@@ -44,12 +45,14 @@ type PublicKey interface {
 	ExpiresAt() time.Time
 }
 
+// ECPublicKey adds common methods to *ecdsa.PublicKey for type safety
 type ECPublicKey struct {
 	PublicKey *ecdsa.PublicKey // empty interface
 	KID       string
 	Expiry    time.Time
 }
 
+// RSAPublicKey adds common methods to *rsa.PublicKey for type safety
 type RSAPublicKey struct {
 	PublicKey *rsa.PublicKey // empty interface
 	KID       string
@@ -113,20 +116,22 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 		}
 		k = rsakey
 	case *ecdsa.PrivateKey:
-		panic(errors.New(EDevSwapPrivatePublic))
+		panic(errors.New(ErrDevSwapPrivatePublic))
 	case *rsa.PrivateKey:
-		panic(errors.New(EDevSwapPrivatePublic))
+		panic(errors.New(ErrDevSwapPrivatePublic))
 	case *dsa.PublicKey:
-		panic(EInvalidPublicKey)
+		panic(ErrInvalidPublicKey)
 	case *dsa.PrivateKey:
-		panic(EInvalidPublicKey)
+		panic(ErrInvalidPublicKey)
 	default:
-		panic(errors.New(fmt.Sprintf(EDevBadKeyType, pub)))
+		panic(errors.New(fmt.Sprintf(ErrDevBadKeyType, pub)))
 	}
 
 	return k
 }
 
+// MarshalJWKPublicKey outputs a JWK with its key id (kid) and an optional expiration,
+// making it suitable for use as an OIDC public key.
 func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
 	switch k := key.Key().(type) {
@@ -135,29 +140,35 @@ func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
 	case *ecdsa.PublicKey:
 		return MarshalECPublicKey(k, exp...)
 	case *dsa.PublicKey:
-		panic(EInvalidPublicKey)
+		panic(ErrInvalidPublicKey)
 	default:
 		// this is unreachable because we know the types that we pass in
 		log.Printf("keytype: %t, %+v\n", key, key)
-		panic(EInvalidPublicKey)
+		panic(ErrInvalidPublicKey)
 	}
 }
 
-func ThumbprintPublicKey(pub *PublicKey) string {
-	return ThumbprintUntypedPublicKey(pub)
+// ThumbprintPublicKey returns the SHA256 RFC-spec JWK thumbprint
+func ThumbprintPublicKey(pub PublicKey) string {
+	return ThumbprintUntypedPublicKey(pub.Key())
 }
 
+// ThumbprintUntypedPublicKey is a non-typesafe version of ThumbprintPublicKey
+// (but will still panic, to help you discover bugs in development rather than production).
 func ThumbprintUntypedPublicKey(pub crypto.PublicKey) string {
 	switch p := pub.(type) {
+	case PublicKey:
+		return ThumbprintUntypedPublicKey(p.Key())
 	case *ecdsa.PublicKey:
 		return ThumbprintECPublicKey(p)
 	case *rsa.PublicKey:
 		return ThumbprintRSAPublicKey(p)
 	default:
-		panic(EInvalidPublicKey)
+		panic(ErrInvalidPublicKey)
 	}
 }
 
+// MarshalECPublicKey will take an EC key and output a JWK, with optional expiration date
 func MarshalECPublicKey(k *ecdsa.PublicKey, exp ...time.Time) []byte {
 	thumb := ThumbprintECPublicKey(k)
 	crv := k.Curve.Params().Name
@@ -170,6 +181,7 @@ func MarshalECPublicKey(k *ecdsa.PublicKey, exp ...time.Time) []byte {
 	return []byte(fmt.Sprintf(`{"kid":%q,"use":"sig",%s"crv":%q,"kty":"EC","x":%q,"y":%q}`, thumb, expstr, crv, x, y))
 }
 
+// MarshalECPublicKeyWithoutKeyID will output the most minimal version of an EC JWK (no key id, no "use" flag, nada)
 func MarshalECPublicKeyWithoutKeyID(k *ecdsa.PublicKey) []byte {
 	crv := k.Curve.Params().Name
 	x := base64.RawURLEncoding.EncodeToString(k.X.Bytes())
@@ -177,12 +189,14 @@ func MarshalECPublicKeyWithoutKeyID(k *ecdsa.PublicKey) []byte {
 	return []byte(fmt.Sprintf(`{"crv":%q,"kty":"EC","x":%q,"y":%q}`, crv, x, y))
 }
 
+// ThumbprintECPublicKey will output a RFC-spec SHA256 JWK thumbprint of an EC public key
 func ThumbprintECPublicKey(k *ecdsa.PublicKey) string {
 	thumbprintable := MarshalECPublicKeyWithoutKeyID(k)
 	sha := sha256.Sum256(thumbprintable)
 	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
 
+// MarshalRSAPublicKey will take an RSA key and output a JWK, with optional expiration date
 func MarshalRSAPublicKey(p *rsa.PublicKey, exp ...time.Time) []byte {
 	thumb := ThumbprintRSAPublicKey(p)
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
@@ -194,36 +208,26 @@ func MarshalRSAPublicKey(p *rsa.PublicKey, exp ...time.Time) []byte {
 	return []byte(fmt.Sprintf(`{"kid":%q,"use":"sig",%s"e":%q,"kty":"RSA","n":%q}`, thumb, expstr, e, n))
 }
 
+// MarshalRSAPublicKeyWithoutKeyID will output the most minimal version of an RSA JWK (no key id, no "use" flag, nada)
 func MarshalRSAPublicKeyWithoutKeyID(p *rsa.PublicKey) []byte {
 	e := base64.RawURLEncoding.EncodeToString(big.NewInt(int64(p.E)).Bytes())
 	n := base64.RawURLEncoding.EncodeToString(p.N.Bytes())
 	return []byte(fmt.Sprintf(`{"e":%q,"kty":"RSA","n":%q}`, e, n))
 }
 
+// ThumbprintRSAPublicKey will output a RFC-spec SHA256 JWK thumbprint of an EC public key
 func ThumbprintRSAPublicKey(p *rsa.PublicKey) string {
 	thumbprintable := MarshalRSAPublicKeyWithoutKeyID(p)
 	sha := sha256.Sum256([]byte(thumbprintable))
 	return base64.RawURLEncoding.EncodeToString(sha[:])
 }
 
+// ParsePrivateKey will try to parse the bytes you give it
+// in any of the supported formats: PEM, DER, PKCS8, PKCS1, SEC1, and JWK
 func ParsePrivateKey(block []byte) (PrivateKey, error) {
-	var pemblock *pem.Block
-	var blocks = make([][]byte, 0, 1)
-
-	// Parse the PEM, if it's a pem
-	for {
-		pemblock, block = pem.Decode(block)
-		if nil != pemblock {
-			// got one block, there may be more
-			blocks = append(blocks, pemblock.Bytes)
-		} else {
-			// the last block was not a PEM block
-			// therefore the next isn't either
-			if 0 != len(block) {
-				blocks = append(blocks, block)
-			}
-			break
-		}
+	blocks, err := getPEMBytes(block)
+	if nil != err {
+		return nil, ErrParsePrivateKey
 	}
 
 	// Parse PEM blocks (openssl generates junk metadata blocks for ECs)
@@ -236,9 +240,10 @@ func ParsePrivateKey(block []byte) (PrivateKey, error) {
 	}
 
 	// If we didn't parse a key arleady, we failed
-	return nil, EParsePrivateKey
+	return nil, ErrParsePrivateKey
 }
 
+// ParsePrivateKeyString calls ParsePrivateKey([]byte(key)) for all you lazy folk.
 func ParsePrivateKeyString(block string) (PrivateKey, error) {
 	return ParsePrivateKey([]byte(block))
 }
@@ -255,7 +260,7 @@ func parsePrivateKey(der []byte) (PrivateKey, error) {
 		case *ecdsa.PrivateKey:
 			key = k
 		default:
-			// ignore nil and unknown key types
+			err = errors.New("Only RSA and ECDSA (EC) Private Keys are supported")
 		}
 	}
 
@@ -282,6 +287,108 @@ func parsePrivateKey(der []byte) (PrivateKey, error) {
 	return key, nil
 }
 
+func getPEMBytes(block []byte) ([][]byte, error) {
+	var pemblock *pem.Block
+	var blocks = make([][]byte, 0, 1)
+
+	// Parse the PEM, if it's a pem
+	for {
+		pemblock, block = pem.Decode(block)
+		if nil != pemblock {
+			// got one block, there may be more
+			blocks = append(blocks, pemblock.Bytes)
+		} else {
+			// the last block was not a PEM block
+			// therefore the next isn't either
+			if 0 != len(block) {
+				blocks = append(blocks, block)
+			}
+			break
+		}
+	}
+
+	if len(blocks) > 0 {
+		return blocks, nil
+	} else {
+		return nil, errors.New("no PEM blocks found")
+	}
+}
+
+// ParsePrivateKey will try to parse the bytes you give it
+// in any of the supported formats: PEM, DER, PKIX/SPKI, PKCS1, x509 Certificate, and JWK
+func ParsePublicKey(block []byte) (PublicKey, error) {
+	blocks, err := getPEMBytes(block)
+	if nil != err {
+		return nil, ErrParsePublicKey
+	}
+
+	// Parse PEM blocks (openssl generates junk metadata blocks for ECs)
+	// or the original DER, or the JWK
+	for i, _ := range blocks {
+		block = blocks[i]
+		if key, err := parsePublicKey(block); nil == err {
+			return key, nil
+		}
+	}
+
+	// If we didn't parse a key arleady, we failed
+	return nil, ErrParsePublicKey
+}
+
+// ParsePublicKeyString calls ParsePublicKey([]byte(key)) for all you lazy folk.
+func ParsePublicKeyString(block string) (PublicKey, error) {
+	return ParsePublicKey([]byte(block))
+}
+
+func parsePublicKey(der []byte) (PublicKey, error) {
+	var key PublicKey
+
+	cert, err := x509.ParseCertificate(der)
+	if nil == err {
+		switch k := cert.PublicKey.(type) {
+		case *rsa.PublicKey:
+			return NewPublicKey(k), nil
+		case *ecdsa.PublicKey:
+			return NewPublicKey(k), nil
+		default:
+			err = errors.New("Only RSA and ECDSA (EC) Public Keys are supported")
+		}
+	}
+
+	//fmt.Println("1. ParsePKIXPublicKey")
+	xkey, err := x509.ParsePKIXPublicKey(der)
+	if nil == err {
+		switch k := xkey.(type) {
+		case *rsa.PublicKey:
+			return NewPublicKey(k), nil
+		case *ecdsa.PublicKey:
+			return NewPublicKey(k), nil
+		default:
+			err = errors.New("Only RSA and ECDSA (EC) Public Keys are supported")
+		}
+	}
+
+	if nil != err {
+		//fmt.Println("3. ParsePKCS1PrublicKey")
+		keyx, err := x509.ParsePKCS1PublicKey(der)
+		key = NewPublicKey(keyx)
+		if nil != err {
+			//fmt.Println("4. ParseJWKPublicKey")
+			key, err = ParseJWKPublicKey(der)
+		}
+	}
+
+	// But did you know?
+	// You must return nil explicitly for interfaces
+	// https://golang.org/doc/faq#nil_error
+	if nil != err {
+		return nil, err
+	}
+
+	return key, nil
+}
+
+// NewJWKPublicKey contstructs a PublicKey from the relevant pieces a map[string]string (generic JSON)
 func NewJWKPublicKey(m map[string]string) (PublicKey, error) {
 	switch m["kty"] {
 	case "RSA":
@@ -289,22 +396,26 @@ func NewJWKPublicKey(m map[string]string) (PublicKey, error) {
 	case "EC":
 		return parseECPublicKey(m)
 	default:
-		return nil, EInvalidKeyType
+		return nil, ErrInvalidKeyType
 	}
 }
 
+// ParseJWKPublicKey parses a JSON-encoded JWK and returns a PublicKey, or a (hopefully) helpful error message
 func ParseJWKPublicKey(b []byte) (PublicKey, error) {
 	return newJWKPublicKey(b)
 }
 
+// ParseJWKPublicKeyString calls ParseJWKPublicKey([]byte(key)) for all you lazy folk.
 func ParseJWKPublicKeyString(s string) (PublicKey, error) {
 	return newJWKPublicKey(s)
 }
 
+// DecodeJWKPublicKey stream-decodes a JSON-encoded JWK and returns a PublicKey, or a (hopefully) helpful error message
 func DecodeJWKPublicKey(r io.Reader) (PublicKey, error) {
 	return newJWKPublicKey(r)
 }
 
+// the underpinnings of the parser as used by the typesafe wrappers
 func newJWKPublicKey(data interface{}) (PublicKey, error) {
 	var m map[string]string
 
@@ -331,6 +442,7 @@ func newJWKPublicKey(data interface{}) (PublicKey, error) {
 	return NewJWKPublicKey(m)
 }
 
+// ParseJWKPrivateKey parses a JSON-encoded JWK and returns a PrivateKey, or a (hopefully) helpful error message
 func ParseJWKPrivateKey(b []byte) (PrivateKey, error) {
 	var m map[string]string
 	if err := json.Unmarshal(b, &m); nil != err {
@@ -343,7 +455,7 @@ func ParseJWKPrivateKey(b []byte) (PrivateKey, error) {
 	case "EC":
 		return parseECPrivateKey(m)
 	default:
-		return nil, EInvalidKeyType
+		return nil, ErrInvalidKeyType
 	}
 }
 
@@ -353,7 +465,7 @@ func parseRSAPublicKey(m map[string]string) (*RSAPublicKey, error) {
 	n, _ := base64.RawURLEncoding.DecodeString(m["n"])
 	e, _ := base64.RawURLEncoding.DecodeString(m["e"])
 	if 0 == len(n) || 0 == len(e) {
-		return nil, EParseJWK
+		return nil, ErrParseJWK
 	}
 	ni := &big.Int{}
 	ni.SetBytes(n)
@@ -384,7 +496,7 @@ func parseRSAPrivateKey(m map[string]string) (key *rsa.PrivateKey, err error) {
 	dq, _ := base64.RawURLEncoding.DecodeString(m["dq"])
 	qinv, _ := base64.RawURLEncoding.DecodeString(m["qi"])
 	if 0 == len(d) || 0 == len(p) || 0 == len(dp) || 0 == len(dq) || 0 == len(qinv) {
-		return nil, EParseJWK
+		return nil, ErrParseJWK
 	}
 
 	di := &big.Int{}
@@ -420,7 +532,7 @@ func parseECPublicKey(m map[string]string) (*ECPublicKey, error) {
 	x, _ := base64.RawURLEncoding.DecodeString(m["x"])
 	y, _ := base64.RawURLEncoding.DecodeString(m["y"])
 	if 0 == len(x) || 0 == len(y) || 0 == len(m["crv"]) {
-		return nil, EParseJWK
+		return nil, ErrParseJWK
 	}
 
 	xi := &big.Int{}
@@ -438,7 +550,7 @@ func parseECPublicKey(m map[string]string) (*ECPublicKey, error) {
 	case "P-521":
 		crv = elliptic.P521()
 	default:
-		return nil, EInvalidCurve
+		return nil, ErrInvalidCurve
 	}
 
 	pub := &ecdsa.PublicKey{
@@ -461,7 +573,7 @@ func parseECPrivateKey(m map[string]string) (*ecdsa.PrivateKey, error) {
 
 	d, _ := base64.RawURLEncoding.DecodeString(m["d"])
 	if 0 == len(d) {
-		return nil, EParseJWK
+		return nil, ErrParseJWK
 	}
 	di := &big.Int{}
 	di.SetBytes(d)

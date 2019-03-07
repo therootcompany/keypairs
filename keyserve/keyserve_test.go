@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -16,9 +17,9 @@ import (
 )
 
 func TestServeKeys(t *testing.T) {
-	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	eckey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	pubs := []keypairs.PublicKey{
-		keypairs.NewPublicKey(key.Public()),
+		keypairs.NewPublicKey(eckey.Public()),
 	}
 
 	addr := ":62017"
@@ -48,12 +49,12 @@ func TestServeKeys(t *testing.T) {
 	m := map[string]string{}
 	resp, err := http.Get("http://localhost" + addr + "/.well-known/openid-configuration")
 	if nil != err {
-		panic(err)
+		log.Fatal(err)
 	}
 	dec := json.NewDecoder(resp.Body)
 	err = dec.Decode(&m)
 	if nil != err {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	n := struct {
@@ -63,15 +64,29 @@ func TestServeKeys(t *testing.T) {
 	}
 	resp, err = http.Get(m["jwks_uri"])
 	if nil != err {
-		panic(err)
+		log.Fatal(err)
 	}
 	dec = json.NewDecoder(resp.Body)
 	err = dec.Decode(&n)
 	if nil != err {
-		panic(err)
+		log.Fatal(err)
 	}
-	h.Shutdown(context.Background())
 
+	resp, err = http.Get("http://localhost" + addr + "/pem")
+	if nil != err {
+		log.Fatal(err)
+	}
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if nil != err {
+		log.Fatal(err)
+	}
+	_, err = keypairs.ParsePublicKey(bytes)
+	if nil != err {
+		log.Fatal("Could not parse PEM/cert from self")
+		log.Fatal(err)
+	}
+
+	h.Shutdown(context.Background())
 	<-done
 }
 
