@@ -12,6 +12,8 @@ func TestCachesKey(t *testing.T) {
 	testCachesKey(t, "https://bigsquid.auth0.com/")
 	clear()
 	testCachesKey(t, "https://bigsquid.auth0.com")
+	clear()
+	testCachesKey(t, "https://big-squid.github.io/")
 }
 
 func testCachesKey(t *testing.T, url string) {

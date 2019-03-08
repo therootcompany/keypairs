@@ -36,8 +36,9 @@ func OIDCJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs
 // WellKnownJWKs calls JWKs with baseURL + /.well-known/jwks.json as constructs the jwks_uri
 func WellKnownJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
 	baseURL = normalizeBaseURL(baseURL)
+	url := baseURL + ".well-known/jwks.json"
 
-	return JWKs(baseURL + ".well-known/jwks.json")
+	return JWKs(url)
 }
 
 // JWKs fetches and parses a jwks.json (assuming well-known format)
@@ -121,12 +122,15 @@ func safeFetch(url string, decoder decodeFunc) error {
 		}).Dial,
 		TLSHandshakeTimeout: 5 * time.Second,
 	}
-	var netClient = &http.Client{
+	var client = &http.Client{
 		Timeout:   time.Second * 10,
 		Transport: netTransport,
 	}
 
-	res, err := netClient.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "go-keypairs/keyfetch")
+	req.Header.Set("Accept", "application/json;q=0.9,*/*;q=0.8")
+	res, err := client.Do(req)
 	if nil != err {
 		return err
 	}
