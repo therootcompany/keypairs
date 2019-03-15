@@ -314,7 +314,7 @@ func getPEMBytes(block []byte) ([][]byte, error) {
 	}
 }
 
-// ParsePrivateKey will try to parse the bytes you give it
+// ParsePublicKey will try to parse the bytes you give it
 // in any of the supported formats: PEM, DER, PKIX/SPKI, PKCS1, x509 Certificate, and JWK
 func ParsePublicKey(block []byte) (PublicKey, error) {
 	blocks, err := getPEMBytes(block)
@@ -324,7 +324,7 @@ func ParsePublicKey(block []byte) (PublicKey, error) {
 
 	// Parse PEM blocks (openssl generates junk metadata blocks for ECs)
 	// or the original DER, or the JWK
-	for i, _ := range blocks {
+	for i := range blocks {
 		block = blocks[i]
 		if key, err := parsePublicKey(block); nil == err {
 			return key, nil
@@ -341,8 +341,6 @@ func ParsePublicKeyString(block string) (PublicKey, error) {
 }
 
 func parsePublicKey(der []byte) (PublicKey, error) {
-	var key PublicKey
-
 	cert, err := x509.ParseCertificate(der)
 	if nil == err {
 		switch k := cert.PublicKey.(type) {
@@ -351,7 +349,7 @@ func parsePublicKey(der []byte) (PublicKey, error) {
 		case *ecdsa.PublicKey:
 			return NewPublicKey(k), nil
 		default:
-			err = errors.New("Only RSA and ECDSA (EC) Public Keys are supported")
+			return nil, errors.New("Only RSA and ECDSA (EC) Public Keys are supported")
 		}
 	}
 
@@ -364,28 +362,27 @@ func parsePublicKey(der []byte) (PublicKey, error) {
 		case *ecdsa.PublicKey:
 			return NewPublicKey(k), nil
 		default:
-			err = errors.New("Only RSA and ECDSA (EC) Public Keys are supported")
+			return nil, errors.New("Only RSA and ECDSA (EC) Public Keys are supported")
 		}
 	}
 
-	if nil != err {
-		//fmt.Println("3. ParsePKCS1PrublicKey")
-		keyx, err := x509.ParsePKCS1PublicKey(der)
-		key = NewPublicKey(keyx)
+	//fmt.Println("3. ParsePKCS1PrublicKey")
+	rkey, err := x509.ParsePKCS1PublicKey(der)
+	if nil == err {
+		//fmt.Println("4. ParseJWKPublicKey")
+		return NewPublicKey(rkey), nil
+	}
+
+	return ParseJWKPublicKey(der)
+
+	/*
+		// But did you know?
+		// You must return nil explicitly for interfaces
+		// https://golang.org/doc/faq#nil_error
 		if nil != err {
-			//fmt.Println("4. ParseJWKPublicKey")
-			key, err = ParseJWKPublicKey(der)
+			return nil, err
 		}
-	}
-
-	// But did you know?
-	// You must return nil explicitly for interfaces
-	// https://golang.org/doc/faq#nil_error
-	if nil != err {
-		return nil, err
-	}
-
-	return key, nil
+	*/
 }
 
 // NewJWKPublicKey contstructs a PublicKey from the relevant pieces a map[string]string (generic JSON)

@@ -2,8 +2,11 @@
 package uncached
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -72,6 +75,41 @@ func JWKs(jwksurl string) (map[string]map[string]string, map[string]keypairs.Pub
 	}
 
 	return maps, keys, nil
+}
+
+// PEM fetches and parses a PEM (assuming well-known format)
+func PEM(pemurl string) (map[string]string, keypairs.PublicKey, error) {
+	var pub keypairs.PublicKey
+	if err := safeFetch(pemurl, func(body io.Reader) error {
+		pem, err := ioutil.ReadAll(body)
+		if nil != err {
+			return err
+		}
+		pub, err = keypairs.ParsePublicKey(pem)
+		return err
+	}); nil != err {
+		return nil, nil, err
+	}
+
+	jwk := map[string]interface{}{}
+	body := bytes.NewBuffer(keypairs.MarshalJWKPublicKey(pub))
+	decoder := json.NewDecoder(body)
+	decoder.UseNumber()
+	_ = decoder.Decode(&jwk)
+
+	m := getStringMap(jwk)
+	m["kid"] = pemurl
+
+	switch p := pub.(type) {
+	case *keypairs.ECPublicKey:
+		p.KID = pemurl
+	case *keypairs.RSAPublicKey:
+		p.KID = pemurl
+	default:
+		return nil, nil, errors.New("impossible key type")
+	}
+
+	return m, pub, nil
 }
 
 // Fetch retrieves a single JWK (plain, bare jwk) from a URL (off-spec)
