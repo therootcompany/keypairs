@@ -451,3 +451,12 @@ func NewWhitelist(issuers []string, assumePrivate ...bool) (Whitelist, error) {
 func (w Whitelist) IsTrustedIssuer(iss string, rs ...*http.Request) bool {
 	return isTrustedIssuer(iss, w, rs...)
 }
+
+// String will generate a space-delimited list of whitelisted URLs
+func (w Whitelist) String() string {
+	s := []string{}
+	for i := range w {
+		s = append(s, w[i].String())
+	}
+	return strings.Join(s, " ")
+}
