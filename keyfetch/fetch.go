@@ -106,6 +106,28 @@ func JWK(kidOrThumb, iss string) (keypairs.PublicKey, error) {
 	return immediateOneOrFetch(kidOrThumb, iss, uncached.JWKs)
 }
 
+// PEM tries to return a key from cache, falling back to the specified PEM url
+func PEM(url string) (keypairs.PublicKey, error) {
+	// url is kid in this case
+	return immediateOneOrFetch(url, url, func(string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
+		m, key, err := uncached.PEM(url)
+		if nil != err {
+			return nil, nil, err
+		}
+
+		// put in a map, just for caching
+		maps := map[string]map[string]string{}
+		maps[key.Thumbprint()] = m
+		maps[url] = m
+
+		keys := map[string]keypairs.PublicKey{}
+		keys[key.Thumbprint()] = key
+		keys[url] = key
+
+		return maps, keys, nil
+	})
+}
+
 // Fetch returns a key from cache, falling back to an exact url as the "issuer"
 func Fetch(url string) (keypairs.PublicKey, error) {
 	// url is kid in this case
