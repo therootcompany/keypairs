@@ -280,36 +280,7 @@ func normalizeIssuer(iss string) string {
 	return strings.TrimRight(iss, "/")
 }
 
-/*
-  IsTrustedIssuer returns true when the `iss` (i.e. from a token) matches one
-  in the provided whitelist (also matches wildcard domains).
-
-  You may explicitly allow insecure http (i.e. for automated testing) by
-  including http:// Otherwise the scheme in each item of the whitelist should
-	include the "https://" prefix.
-
-  SECURITY CONSIDERATIONS (Please Read)
-
-  You'll notice that *http.Request is optional. It should only be used under these
-  three circumstances:
-
-    1) Something else guarantees http -> https redirection happens before the
-       connection gets here AND this server directly handles TLS/SSL.
-
-    2) If you're using a load balancer or web server, and this doesn't handle
-       TLS/SSL directly, that server is _explicitly_ configured to protect
-       against Domain Fronting attacks. As of 2019, most web servers and load
-       balancers do not protect against that by default.
-
-    3) If you only use it to make your automated integration testing more
-       and it isn't enabled in production.
-
-  Otherwise, DO NOT pass in *http.Request as you will introduce a 0-day
-  vulnerability allowing an attacker to spoof any token issuer of their choice.
-  The only reason I allowed this in a public library where non-experts would
-  encounter it is to make testing easier.
-*/
-func IsTrustedIssuer(iss string, whitelist Whitelist, rs ...*http.Request) bool {
+func isTrustedIssuer(iss string, whitelist Whitelist, rs ...*http.Request) bool {
 	if "" == iss {
 		return false
 	}
@@ -446,4 +417,37 @@ func NewWhitelist(issuers []string, assumePrivate ...bool) (Whitelist, error) {
 	}
 
 	return Whitelist(list), nil
+}
+
+/*
+  IsTrustedIssuer returns true when the `iss` (i.e. from a token) matches one
+  in the provided whitelist (also matches wildcard domains).
+
+  You may explicitly allow insecure http (i.e. for automated testing) by
+  including http:// Otherwise the scheme in each item of the whitelist should
+	include the "https://" prefix.
+
+  SECURITY CONSIDERATIONS (Please Read)
+
+  You'll notice that *http.Request is optional. It should only be used under these
+  three circumstances:
+
+    1) Something else guarantees http -> https redirection happens before the
+       connection gets here AND this server directly handles TLS/SSL.
+
+    2) If you're using a load balancer or web server, and this doesn't handle
+       TLS/SSL directly, that server is _explicitly_ configured to protect
+       against Domain Fronting attacks. As of 2019, most web servers and load
+       balancers do not protect against that by default.
+
+    3) If you only use it to make your automated integration testing more
+       and it isn't enabled in production.
+
+  Otherwise, DO NOT pass in *http.Request as you will introduce a 0-day
+  vulnerability allowing an attacker to spoof any token issuer of their choice.
+  The only reason I allowed this in a public library where non-experts would
+  encounter it is to make testing easier.
+*/
+func (w Whitelist) IsTrustedIssuer(iss string, rs ...*http.Request) bool {
+	return isTrustedIssuer(iss, w, rs...)
 }
