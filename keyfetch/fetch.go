@@ -11,6 +11,7 @@ package keyfetch
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -25,6 +26,7 @@ import (
 var EInvalidJWKURL = errors.New("url does not lead to valid JWKs")
 var KeyCache = map[string]CachableKey{}
 var KeyCacheMux = sync.Mutex{}
+var ErrInsecureDomain = errors.New("Whitelists should only allow secure domains (i.e. https://). To allow unsecured private networking (i.e. Docker) pass PrivateWhitelist as `true`")
 
 type CachableKey struct {
 	Key    keypairs.PublicKey
@@ -286,6 +288,10 @@ func normalizeIssuer(iss string) string {
   encounter it is to make testing easier.
 */
 func IsTrustedIssuer(iss string, whitelist Whitelist, rs ...*http.Request) bool {
+	if "" == iss {
+		return false
+	}
+
 	// Normalize the http:// and https:// and parse
 	iss = strings.TrimRight(iss, "/") + "/"
 	if strings.HasPrefix(iss, "http://") {
@@ -385,10 +391,10 @@ type Whitelist []*url.URL
 
 // NewWhitelist turns an array of URLs (such as https://example.com/) into
 // a parsed array of *url.URLs that can be used by the IsTrustedIssuer function
-func NewWhitelist(issuers []string, insecures ...bool) (Whitelist, error) {
+func NewWhitelist(issuers []string, assumePrivate ...bool) (Whitelist, error) {
 	list := []*url.URL{}
 	insecure := false
-	if 0 != len(insecures) && insecures[0] {
+	if 0 != len(assumePrivate) && assumePrivate[0] {
 		insecure = true
 	}
 
@@ -396,7 +402,8 @@ func NewWhitelist(issuers []string, insecures ...bool) (Whitelist, error) {
 		iss := issuers[i]
 		if strings.HasPrefix(iss, "http://") {
 			if !insecure {
-				return nil, errors.New("Oops! You have an insecure domain in your whitelist: " + iss)
+				log.Println("Oops! You have an insecure domain in your whitelist: ", iss)
+				return nil, ErrInsecureDomain
 			}
 		} else if strings.HasPrefix(iss, "//") {
 			// TODO
