@@ -26,6 +26,15 @@ func TestCachesKey(t *testing.T) {
 	testCachesKey(t, "https://big-squid.github.io/")
 }
 
+func TestKnownKID(t *testing.T) {
+	url := "https://kraken-dev.auth0.com"
+	kid := "RkVGNTM5NDc4NkM4NjA5OEMxMTNCMTNBQ0RGRDA0MEQ0RDNDMkM3Qw"
+	_, err := OIDCJWK(kid, url)
+	if nil != err {
+		t.Fatal(url, err)
+	}
+}
+
 func testCachesKey(t *testing.T, url string) {
 	// Raw fetch a key and get KID and Thumbprint
 	_, keys, err := uncached.OIDCJWKs(url)

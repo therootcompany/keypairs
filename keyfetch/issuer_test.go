@@ -40,97 +40,97 @@ func TestIssuerMatches(t *testing.T) {
 
 	var iss string
 	iss = "https://example.com"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good domain didn't make it:", iss)
 	}
 
 	iss = "https://example.com/"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good domain didn't make it:", iss)
 	}
 
 	iss = "http://example.com"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://example.com/foo"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "http://happy.xyz/abc"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "http://happy.xyz/abc/"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "http://happy.xyz/abc/d"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "http://happy.xyz/abcd"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://foobar.net/def"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "https://foobar.net/def/"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "http://foobar.net/def/"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://foobar.net/def/e"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://foobar.net/defe"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://wild.org"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://foo.wild.org"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "https://sub.foo.wild.org"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "https://foo.wild.org/cherries"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 
 	iss = "https://sub.west.mali/verde/"
-	if !IsTrustedIssuer(iss, list) {
+	if !list.IsTrustedIssuer(iss) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
 	iss = "https://sub.west.mali"
-	if IsTrustedIssuer(iss, list) {
+	if list.IsTrustedIssuer(iss) {
 		t.Fatal("A bad URL slipped past", iss)
 	}
 }
@@ -147,7 +147,7 @@ func TestImplicitIssuer(t *testing.T) {
 		}),
 	}
 	iss = "https://example.com/foo"
-	if !IsTrustedIssuer(iss, nil, r) {
+	if !isTrustedIssuer(iss, nil, r) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 
@@ -160,7 +160,7 @@ func TestImplicitIssuer(t *testing.T) {
 		}),
 	}
 	iss = "http://example.com/foo"
-	if IsTrustedIssuer(iss, nil, r) {
+	if isTrustedIssuer(iss, nil, r) {
 		t.Fatal("A bad URL slipped past:", iss)
 	}
 
@@ -172,7 +172,7 @@ func TestImplicitIssuer(t *testing.T) {
 		}),
 	}
 	iss = "https://example.com/foo/bar/baz"
-	if IsTrustedIssuer(iss, nil, r) {
+	if isTrustedIssuer(iss, nil, r) {
 		t.Fatal("A bad URL slipped past:", iss)
 	}
 
@@ -184,7 +184,7 @@ func TestImplicitIssuer(t *testing.T) {
 		}),
 	}
 	iss = "https://example.com/"
-	if !IsTrustedIssuer(iss, nil, r) {
+	if !isTrustedIssuer(iss, nil, r) {
 		t.Fatal("A good URL didn't make it:", iss)
 	}
 }
