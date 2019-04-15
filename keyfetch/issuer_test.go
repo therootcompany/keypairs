@@ -22,18 +22,26 @@ func TestInvalidIssuer(t *testing.T) {
 func TestIssuerMatches(t *testing.T) {
 	trusted := []string{
 		"https://example.com/",
-		"http://happy.xyz/abc",
 		"foobar.net/def/",
 		"https://*.wild.org",
 		"https://*.west.mali/verde",
 	}
+	privates := []string{
+		"http://happy.xyz/abc",
+	}
 
-	_, err := NewWhitelist(trusted)
+	_, err := NewWhitelist(append(trusted, privates...))
 	if nil == err {
 		t.Fatal(errors.New("An insecure domain got through!"))
 	}
 
-	list, err := NewWhitelist(trusted, true)
+	// Empty list is allowed... I guess?
+	list, err := NewWhitelist(nil)
+	if nil != err {
+		t.Fatal(err)
+	}
+	// Combo list
+	list, err = NewWhitelist(trusted, privates)
 	if nil != err {
 		t.Fatal(err)
 	}

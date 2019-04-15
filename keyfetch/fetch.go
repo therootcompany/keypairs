@@ -384,15 +384,34 @@ type Whitelist []*url.URL
 
 // NewWhitelist turns an array of URLs (such as https://example.com/) into
 // a parsed array of *url.URLs that can be used by the IsTrustedIssuer function
-func NewWhitelist(issuers []string, assumePrivate ...bool) (Whitelist, error) {
+func NewWhitelist(issuers []string, privateList ...[]string) (Whitelist, error) {
+	var err error
+
 	list := []*url.URL{}
-	insecure := false
-	if 0 != len(assumePrivate) && assumePrivate[0] {
-		insecure = true
+	if 0 != len(issuers) {
+		insecure := false
+		list, err = newWhitelist(list, issuers, insecure)
+		if nil != err {
+			return nil, err
+		}
+	}
+	if 0 != len(privateList) && 0 != len(privateList[0]) {
+		insecure := true
+		list, err = newWhitelist(list, privateList[0], insecure)
+		if nil != err {
+			return nil, err
+		}
 	}
 
+	return Whitelist(list), nil
+}
+
+func newWhitelist(list []*url.URL, issuers []string, insecure bool) (Whitelist, error) {
 	for i := range issuers {
 		iss := issuers[i]
+
+		// Should have a valid http or https prefix
+		// TODO support custom prefixes (i.e. app://) ?
 		if strings.HasPrefix(iss, "http://") {
 			if !insecure {
 				log.Println("Oops! You have an insecure domain in your whitelist: ", iss)
@@ -404,19 +423,24 @@ func NewWhitelist(issuers []string, assumePrivate ...bool) (Whitelist, error) {
 		} else if !strings.HasPrefix(iss, "https://") {
 			iss = "https://" + iss
 		}
+
 		// trailing slash as a boundary character, which may or may not denote a directory
 		iss = strings.TrimRight(iss, "/") + "/"
 		u, err := url.Parse(iss)
 		if nil != err {
 			return nil, err
 		}
+
+		// Strip any * prefix, for easier comparison later
+		// *.example.com => .example.com
 		if strings.HasPrefix(u.Host, "*.") {
 			u.Host = u.Host[1:]
 		}
+
 		list = append(list, u)
 	}
 
-	return Whitelist(list), nil
+	return list, nil
 }
 
 /*
