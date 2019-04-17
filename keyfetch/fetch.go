@@ -409,6 +409,10 @@ func NewWhitelist(issuers []string, privateList ...[]string) (Whitelist, error) 
 func newWhitelist(list []*url.URL, issuers []string, insecure bool) (Whitelist, error) {
 	for i := range issuers {
 		iss := issuers[i]
+		if "" == strings.TrimSpace(iss) {
+			fmt.Println("[Warning] You have an empty string in your keyfetch whitelist.")
+			continue
+		}
 
 		// Should have a valid http or https prefix
 		// TODO support custom prefixes (i.e. app://) ?

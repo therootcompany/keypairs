@@ -20,7 +20,9 @@ func TestInvalidIssuer(t *testing.T) {
 }
 
 func TestIssuerMatches(t *testing.T) {
+	// because [""] = strings.Split(os.Getenv("DOESNTEXIST"), ",")
 	trusted := []string{
+		"",
 		"https://example.com/",
 		"foobar.net/def/",
 		"https://*.wild.org",
@@ -41,7 +43,7 @@ func TestIssuerMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Combo list
-	list, err = NewWhitelist(trusted, privates)
+	list, err = NewWhitelist(trusted[1:], privates)
 	if nil != err {
 		t.Fatal(err)
 	}
