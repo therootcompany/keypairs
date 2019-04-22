@@ -26,7 +26,7 @@ import (
 var EInvalidJWKURL = errors.New("url does not lead to valid JWKs")
 var KeyCache = map[string]CachableKey{}
 var KeyCacheMux = sync.Mutex{}
-var ErrInsecureDomain = errors.New("Whitelists should only allow secure domains (i.e. https://). To allow unsecured private networking (i.e. Docker) pass PrivateWhitelist as `true`")
+var ErrInsecureDomain = errors.New("Whitelists should only allow secure URLs (i.e. https://). To allow unsecured private networking (i.e. Docker) pass PrivateWhitelist as a list of private URLs")
 
 type CachableKey struct {
 	Key    keypairs.PublicKey
