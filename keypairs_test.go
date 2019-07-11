@@ -43,6 +43,53 @@ func TestParsePrivateKeyEC(t *testing.T) {
 	}
 }
 
+func TestParseUnexpectedPrivateKey(t *testing.T) {
+	keypaths := []string{
+		"fixtures/privkey-ec-p256.jwk.json",
+		"fixtures/privkey-ec-p256.sec1.pem",
+		"fixtures/privkey-ec-p256.pkcs8.pem",
+		"fixtures/privkey-rsa-2048.jwk.json",
+		"fixtures/privkey-rsa-2048.pkcs1.pem",
+		"fixtures/privkey-rsa-2048.pkcs8.pem",
+	}
+	for i := range keypaths {
+		path := keypaths[i]
+		b, err := ioutil.ReadFile(path)
+		if nil != err {
+			t.Fatal(path, err)
+		}
+
+		_, err = ParsePublicKey(b)
+		switch err {
+		case ErrUnexpectedPrivateKey:
+			continue
+		default:
+			t.Fatal(path, err)
+		}
+	}
+}
+
+func TestParseUnexpectedPublicKey(t *testing.T) {
+	keypaths := []string{
+		"fixtures/pub-ec-p256.jwk.json",
+	}
+	for i := range keypaths {
+		path := keypaths[i]
+		b, err := ioutil.ReadFile(path)
+		if nil != err {
+			t.Fatal(path, err)
+		}
+
+		_, err = ParsePrivateKey(b)
+		switch err {
+		case ErrUnexpectedPublicKey:
+			continue
+		default:
+			t.Fatal(path, err)
+		}
+	}
+}
+
 func TestParsePrivateKeyRSA(t *testing.T) {
 	keypaths := []string{
 		"fixtures/privkey-rsa-2048.jwk.json",
@@ -71,7 +118,7 @@ func TestParsePrivateKeyRSA(t *testing.T) {
 }
 
 func TestParseCertificate(t *testing.T) {
-	resp, err := http.Get("http://bigsquid.auth0.com/pem")
+	resp, err := http.Get("https://example.auth0.com/pem")
 	if nil != err {
 		log.Fatal(err)
 	}

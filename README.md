@@ -23,7 +23,7 @@ Don't get the two mixed up!
 
 (furthermore, [just because you _do_ know someone doesn't make them _not_ smart](https://www.humancondition.com/asid-prophets-without-honour-in-their-own-home/))
 
-Although I would not want to invent my own cryptographic algorithm,
+Although I would **not** want to invent my own cryptographic algorithm,
 I've read enough source code to know that, for standards I know well,
 I feel much more confident in the security, extensibility, and documentation
 of tooling that I've write myself.

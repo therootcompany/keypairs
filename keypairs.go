@@ -1,6 +1,7 @@
 package keypairs
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/dsa"
 	"crypto/ecdsa"
@@ -16,6 +17,7 @@ import (
 	"io"
 	"log"
 	"math/big"
+	"strings"
 	"time"
 )
 
@@ -26,6 +28,8 @@ var ErrParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM
 var ErrParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
 var ErrInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
 var ErrInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
+var ErrUnexpectedPublicKey = errors.New("PrivateKey was given where PublicKey was expected")
+var ErrUnexpectedPrivateKey = errors.New("PublicKey was given where PrivateKey was expected")
 
 const ErrDevSwapPrivatePublic = "[Developer Error] You passed either crypto.PrivateKey or crypto.PublicKey where the other was expected."
 
@@ -239,6 +243,13 @@ func ParsePrivateKey(block []byte) (PrivateKey, error) {
 		}
 	}
 
+	for i := range blocks {
+		block = blocks[i]
+		if _, err := parsePublicKey(block); nil == err {
+			return nil, ErrUnexpectedPublicKey
+		}
+	}
+
 	// If we didn't parse a key arleady, we failed
 	return nil, ErrParsePrivateKey
 }
@@ -331,6 +342,13 @@ func ParsePublicKey(block []byte) (PublicKey, error) {
 		}
 	}
 
+	for i := range blocks {
+		block = blocks[i]
+		if _, err := parsePrivateKey(block); nil == err {
+			return nil, ErrUnexpectedPrivateKey
+		}
+	}
+
 	// If we didn't parse a key arleady, we failed
 	return nil, ErrParsePublicKey
 }
@@ -399,17 +417,31 @@ func NewJWKPublicKey(m map[string]string) (PublicKey, error) {
 
 // ParseJWKPublicKey parses a JSON-encoded JWK and returns a PublicKey, or a (hopefully) helpful error message
 func ParseJWKPublicKey(b []byte) (PublicKey, error) {
+	// RSA and EC have "d" as a private part
+	if bytes.Contains(b, []byte(`"d"`)) {
+		return nil, ErrUnexpectedPrivateKey
+	}
 	return newJWKPublicKey(b)
 }
 
 // ParseJWKPublicKeyString calls ParseJWKPublicKey([]byte(key)) for all you lazy folk.
 func ParseJWKPublicKeyString(s string) (PublicKey, error) {
+	if strings.Contains(s, `"d"`) {
+		return nil, ErrUnexpectedPrivateKey
+	}
 	return newJWKPublicKey(s)
 }
 
 // DecodeJWKPublicKey stream-decodes a JSON-encoded JWK and returns a PublicKey, or a (hopefully) helpful error message
 func DecodeJWKPublicKey(r io.Reader) (PublicKey, error) {
-	return newJWKPublicKey(r)
+	m := make(map[string]string)
+	if err := json.NewDecoder(r).Decode(&m); nil != err {
+		return nil, err
+	}
+	if d := m["d"]; "" != d {
+		return nil, ErrUnexpectedPrivateKey
+	}
+	return newJWKPublicKey(m)
 }
 
 // the underpinnings of the parser as used by the typesafe wrappers
@@ -419,11 +451,6 @@ func newJWKPublicKey(data interface{}) (PublicKey, error) {
 	switch d := data.(type) {
 	case map[string]string:
 		m = d
-	case io.Reader:
-		m = make(map[string]string)
-		if err := json.NewDecoder(d).Decode(&m); nil != err {
-			return nil, err
-		}
 	case string:
 		if err := json.Unmarshal([]byte(d), &m); nil != err {
 			return nil, err
