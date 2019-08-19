@@ -54,3 +54,10 @@ only the most basic and most meaningful parts of a key.
 I highly recommend that you use `Thumbprint()` for `KeyID` you also
 get the benefit of not losing information when encoding and decoding
 between the ASN.1, x509, PEM, and JWK formats.
+
+# LICENSE
+
+Copyright (c) 2018-2019 Big Squid, Inc.
+
+This work is licensed under the terms of the MIT license.
+For a copy, see <https://opensource.org/licenses/MIT>.
