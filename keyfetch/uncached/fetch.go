@@ -66,12 +66,13 @@ func JWKs(jwksurl string) (map[string]map[string]string, map[string]keypairs.Pub
 		k := resp.Keys[i]
 		m := getStringMap(k)
 
-		if key, err := keypairs.NewJWKPublicKey(m); nil != err {
+		key, err := keypairs.NewJWKPublicKey(m)
+
+		if nil != err {
 			return nil, nil, err
-		} else {
-			keys[key.Thumbprint()] = key
-			maps[key.Thumbprint()] = m
 		}
+		keys[key.Thumbprint()] = key
+		maps[key.Thumbprint()] = m
 	}
 
 	return maps, keys, nil

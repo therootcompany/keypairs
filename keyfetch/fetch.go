@@ -23,11 +23,23 @@ import (
 	"github.com/big-squid/go-keypairs/keyfetch/uncached"
 )
 
+// TODO should be ErrInvalidJWKURL
+
+// EInvalidJWKURL means that the url did not provide JWKs
 var EInvalidJWKURL = errors.New("url does not lead to valid JWKs")
+
+// KeyCache is an in-memory key cache
 var KeyCache = map[string]CachableKey{}
+
+// KeyCacheMux is used to guard the in-memory cache
 var KeyCacheMux = sync.Mutex{}
+
+// ErrInsecureDomain means that plain http was used where https was expected
 var ErrInsecureDomain = errors.New("Whitelists should only allow secure URLs (i.e. https://). To allow unsecured private networking (i.e. Docker) pass PrivateWhitelist as a list of private URLs")
 
+// TODO Cacheable key (shouldn't this be private)?
+
+// CachableKey represents
 type CachableKey struct {
 	Key    keypairs.PublicKey
 	Expiry time.Time
@@ -55,50 +67,64 @@ type ID interface {
 }
 */
 
+// StaleTime defines when public keys should be renewed (15 minutes by default)
 var StaleTime = 15 * time.Minute
+
+// DefaultKeyDuration defines how long a key should be considered fresh (48 hours by default)
 var DefaultKeyDuration = 48 * time.Hour
+
+// MinimumKeyDuration defines the minimum time that a key will be cached (1 hour by default)
 var MinimumKeyDuration = time.Hour
+
+// MaximumKeyDuration defines the maximum time that a key will be cached (72 hours by default)
 var MaximumKeyDuration = 72 * time.Hour
 
-type publicKeysMap map[string]keypairs.PublicKey
+// PublicKeysMap is a newtype for a map of keypairs.PublicKey
+type PublicKeysMap map[string]keypairs.PublicKey
 
-// FetchOIDCPublicKeys fetches baseURL + ".well-known/openid-configuration" and then returns FetchPublicKeys(jwks_uri).
-func OIDCJWKs(baseURL string) (publicKeysMap, error) {
-	if maps, keys, err := uncached.OIDCJWKs(baseURL); nil != err {
+// OIDCJWKs fetches baseURL + ".well-known/openid-configuration" and then fetches and returns the Public Keys.
+func OIDCJWKs(baseURL string) (PublicKeysMap, error) {
+	maps, keys, err := uncached.OIDCJWKs(baseURL)
+
+	if nil != err {
 		return nil, err
-	} else {
-		cacheKeys(maps, keys, baseURL)
-		return keys, err
 	}
+	cacheKeys(maps, keys, baseURL)
+	return keys, err
 }
 
+// OIDCJWK fetches baseURL + ".well-known/openid-configuration" and then returns the key matching kid (or thumbprint)
 func OIDCJWK(kidOrThumb, iss string) (keypairs.PublicKey, error) {
 	return immediateOneOrFetch(kidOrThumb, iss, uncached.OIDCJWKs)
 }
 
-func WellKnownJWKs(kidOrThumb, iss string) (publicKeysMap, error) {
-	if maps, keys, err := uncached.WellKnownJWKs(iss); nil != err {
+// WellKnownJWKs fetches baseURL + ".well-known/jwks.json" and caches and returns the keys
+func WellKnownJWKs(kidOrThumb, iss string) (PublicKeysMap, error) {
+	maps, keys, err := uncached.WellKnownJWKs(iss)
+
+	if nil != err {
 		return nil, err
-	} else {
-		cacheKeys(maps, keys, iss)
-		return keys, err
 	}
+	cacheKeys(maps, keys, iss)
+	return keys, err
 }
 
+// WellKnownJWK fetches baseURL + ".well-known/jwks.json" and returns the key matching kid (or thumbprint)
 func WellKnownJWK(kidOrThumb, iss string) (keypairs.PublicKey, error) {
 	return immediateOneOrFetch(kidOrThumb, iss, uncached.WellKnownJWKs)
 }
 
 // JWKs returns a map of keys identified by their thumbprint
 // (since kid may or may not be present)
-func JWKs(jwksurl string) (publicKeysMap, error) {
-	if maps, keys, err := uncached.JWKs(jwksurl); nil != err {
+func JWKs(jwksurl string) (PublicKeysMap, error) {
+	maps, keys, err := uncached.JWKs(jwksurl)
+
+	if nil != err {
 		return nil, err
-	} else {
-		iss := strings.Replace(jwksurl, ".well-known/jwks.json", "", 1)
-		cacheKeys(maps, keys, iss)
-		return keys, err
 	}
+	iss := strings.Replace(jwksurl, ".well-known/jwks.json", "", 1)
+	cacheKeys(maps, keys, iss)
+	return keys, err
 }
 
 // JWK tries to return a key from cache, falling back to the /.well-known/jwks.json of the issuer
@@ -379,7 +405,7 @@ func hasImplicitTrust(issURL *url.URL, r *http.Request) bool {
 	return true
 }
 
-// Whitelist
+// Whitelist is a newtype for an array of URLs
 type Whitelist []*url.URL
 
 // NewWhitelist turns an array of URLs (such as https://example.com/) into

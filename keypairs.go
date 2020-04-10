@@ -21,18 +21,37 @@ import (
 	"time"
 )
 
+// ErrInvalidPrivateKey means that the key is not a valid Private Key
 var ErrInvalidPrivateKey = errors.New("PrivateKey must be of type *rsa.PrivateKey or *ecdsa.PrivateKey")
+
+// ErrInvalidPublicKey means that the key is not a valid Public Key
 var ErrInvalidPublicKey = errors.New("PublicKey must be of type *rsa.PublicKey or *ecdsa.PublicKey")
+
+// ErrParsePublicKey means that the bytes cannot be parsed in any known format
 var ErrParsePublicKey = errors.New("PublicKey bytes could not be parsed as PEM or DER (PKIX/SPKI, PKCS1, or X509 Certificate) or JWK")
+
+// ErrParsePrivateKey means that the bytes cannot be parsed in any known format
 var ErrParsePrivateKey = errors.New("PrivateKey bytes could not be parsed as PEM or DER (PKCS8, SEC1, or PKCS1) or JWK")
+
+// ErrParseJWK means that the JWK is valid JSON but not a valid JWK
 var ErrParseJWK = errors.New("JWK is missing required base64-encoded JSON fields")
+
+// ErrInvalidKeyType means that the key is not an acceptable type
 var ErrInvalidKeyType = errors.New("The JWK's 'kty' must be either 'RSA' or 'EC'")
+
+// ErrInvalidCurve means that a non-standard curve was used
 var ErrInvalidCurve = errors.New("The JWK's 'crv' must be either of the NIST standards 'P-256' or 'P-384'")
+
+// ErrUnexpectedPublicKey means that a Private Key was expected
 var ErrUnexpectedPublicKey = errors.New("PrivateKey was given where PublicKey was expected")
+
+// ErrUnexpectedPrivateKey means that a Public Key was expected
 var ErrUnexpectedPrivateKey = errors.New("PublicKey was given where PrivateKey was expected")
 
+// ErrDevSwapPrivatePublic means that the developer compiled bad code that swapped public and private keys
 const ErrDevSwapPrivatePublic = "[Developer Error] You passed either crypto.PrivateKey or crypto.PublicKey where the other was expected."
 
+// ErrDevBadKeyType means that the developer compiled bad code that passes the wrong type
 const ErrDevBadKeyType = "[Developer Error] crypto.PublicKey and crypto.PrivateKey are somewhat deceptive. They're actually empty interfaces that accept any object, even non-crypto objects. You passed an object of type '%T' by mistake."
 
 // PrivateKey is a zero-cost typesafe substitue for crypto.PrivateKey
@@ -63,34 +82,52 @@ type RSAPublicKey struct {
 	Expiry    time.Time
 }
 
+// Thumbprint returns a JWK thumbprint. See https://stackoverflow.com/questions/42588786/how-to-fingerprint-a-jwk
 func (p *ECPublicKey) Thumbprint() string {
 	return ThumbprintUntypedPublicKey(p.PublicKey)
 }
+
+// KeyID returns the JWK `kid`, which will be the Thumbprint for keys generated with this library
 func (p *ECPublicKey) KeyID() string {
 	return p.KID
 }
+
+// Key returns the PublicKey
 func (p *ECPublicKey) Key() crypto.PublicKey {
 	return p.PublicKey
 }
+
+// ExpireAt sets the time at which this Public Key should be considered invalid
 func (p *ECPublicKey) ExpireAt(t time.Time) {
 	p.Expiry = t
 }
+
+// ExpiresAt gets the time at which this Public Key should be considered invalid
 func (p *ECPublicKey) ExpiresAt() time.Time {
 	return p.Expiry
 }
 
+// Thumbprint returns a JWK thumbprint. See https://stackoverflow.com/questions/42588786/how-to-fingerprint-a-jwk
 func (p *RSAPublicKey) Thumbprint() string {
 	return ThumbprintUntypedPublicKey(p.PublicKey)
 }
+
+// KeyID returns the JWK `kid`, which will be the Thumbprint for keys generated with this library
 func (p *RSAPublicKey) KeyID() string {
 	return p.KID
 }
+
+// Key returns the PublicKey
 func (p *RSAPublicKey) Key() crypto.PublicKey {
 	return p.PublicKey
 }
+
+// ExpireAt sets the time at which this Public Key should be considered invalid
 func (p *RSAPublicKey) ExpireAt(t time.Time) {
 	p.Expiry = t
 }
+
+// ExpiresAt gets the time at which this Public Key should be considered invalid
 func (p *RSAPublicKey) ExpiresAt() time.Time {
 	return p.Expiry
 }
@@ -126,9 +163,9 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 	case *dsa.PublicKey:
 		panic(ErrInvalidPublicKey)
 	case *dsa.PrivateKey:
-		panic(ErrInvalidPublicKey)
+		panic(ErrInvalidPrivateKey)
 	default:
-		panic(errors.New(fmt.Sprintf(ErrDevBadKeyType, pub)))
+		panic(fmt.Errorf(ErrDevBadKeyType, pub))
 	}
 
 	return k
@@ -236,7 +273,7 @@ func ParsePrivateKey(block []byte) (PrivateKey, error) {
 
 	// Parse PEM blocks (openssl generates junk metadata blocks for ECs)
 	// or the original DER, or the JWK
-	for i, _ := range blocks {
+	for i := range blocks {
 		block = blocks[i]
 		if key, err := parsePrivateKey(block); nil == err {
 			return key, nil
@@ -320,9 +357,8 @@ func getPEMBytes(block []byte) ([][]byte, error) {
 
 	if len(blocks) > 0 {
 		return blocks, nil
-	} else {
-		return nil, errors.New("no PEM blocks found")
 	}
+	return nil, errors.New("no PEM blocks found")
 }
 
 // ParsePublicKey will try to parse the bytes you give it

@@ -1,54 +1,53 @@
 # go-keypairs
 
-The lightest touch over top of Go's `crypto/ecdsa` and `crypto/rsa` to make them
-*typesafe* and to provide JSON Web Key (JWK) support.
+JSON Web Key (JWK) support and type safety lightly placed over top of Go's `crypto/ecdsa` and `crypto/rsa`
 
-# Documentation
+Useful for JWT, JOSE, etc.
 
-Use the source, Luke!
+```go
+key, err := keypairs.ParsePrivateKey(bytesForJWKOrPEMOrDER)
 
-<https://godoc.org/github.com/big-squid/go-keypairs>
+pub, err := keypairs.ParsePublicKey(bytesForJWKOrPEMOrDER)
+
+jwk, err := keypairs.MarshalJWKPublicKey(pub, time.Now().Add(2 * time.Day))
+
+kid, err := keypairs.ThumbprintPublicKey(pub)
+```
+
+# API Documentation
+
+See <https://godoc.org/github.com/big-squid/go-keypairs>
 
 # Philosophy
 
-Always remember:
+Go's standard library is great.
 
-> Don't roll your own crypto.
+Go has _excellent_ crytography support and provides wonderful
+primitives for dealing with them.
 
-But also remember:
-
-> Just because you _don't_ know someone doesn't make them smart.
-
-Don't get the two mixed up!
-
-(furthermore, [just because you _do_ know someone doesn't make them _not_ smart](https://www.humancondition.com/asid-prophets-without-honour-in-their-own-home/))
-
-Although I would **not** want to invent my own cryptographic algorithm,
-I've read enough source code to know that, for standards I know well,
-I feel much more confident in the security, extensibility, and documentation
-of tooling that I've write myself.
+I prefer to stay as close to Go's `crypto` package as possible,
+just adding a light touch for JWT support and type safety.
 
 # Type Safety
 
-Go has _excellent_ crytography support and provides wonderful
-primitives for dealing with them. Its Achilles' heel is they're **not typesafe**!
+`crypto.PublicKey` is a "marker interface", meaning that it is **not typesafe**!
 
-As of Go 1.11.5 `crypto.PublicKey` and `crypto.PrivateKey` are "marker interfaces"
-or, in other words, empty interfaces that only serve to document intent without
-actually providing a constraint to the type system.
-
-go-keypairs defines `type keypairs.PrivateKey interface { Public() crypto.PublicKey }`,
+`go-keypairs` defines `type keypairs.PrivateKey interface { Public() crypto.PublicKey }`,
 which is implemented by `crypto/rsa` and `crypto/ecdsa`
 (but not `crypto/dsa`, which we really don't care that much about).
+
+Go1.15 will add `[PublicKey.Equal(crypto.PublicKey)](https://github.com/golang/go/issues/21704)`,
+which will make it possible to remove the additional wrapper over `PublicKey`
+and use an interface instead.
 
 Since there are no common methods between `rsa.PublicKey` and `ecdsa.PublicKey`,
 go-keypairs lightly wraps each to implement `Thumbprint() string` (part of the JOSE/JWK spec).
 
-# JSON Web Key "codec"
+## JSON Web Key (JWK) as a "codec"
 
 Although there are many, many ways that JWKs could be interpreted
-(possibly why they haven't made it into the standard library), go-keypairs
-follows the basic pattern of `encoding/x509` to Parse and Marshal
+(possibly why they haven't made it into the standard library), `go-keypairs`
+follows the basic pattern of `encoding/x509` to `Parse` and `Marshal`
 only the most basic and most meaningful parts of a key.
 
 I highly recommend that you use `Thumbprint()` for `KeyID` you also
@@ -57,6 +56,7 @@ between the ASN.1, x509, PEM, and JWK formats.
 
 # LICENSE
 
+Copyright (c) 2020-present AJ ONeal
 Copyright (c) 2018-2019 Big Squid, Inc.
 
 This work is licensed under the terms of the MIT license.

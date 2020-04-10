@@ -34,7 +34,7 @@ func TestIssuerMatches(t *testing.T) {
 
 	_, err := NewWhitelist(append(trusted, privates...))
 	if nil == err {
-		t.Fatal(errors.New("An insecure domain got through!"))
+		t.Fatal(errors.New("an insecure domain got through"))
 	}
 
 	// Empty list is allowed... I guess?
