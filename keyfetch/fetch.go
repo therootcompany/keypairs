@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	keypairs "github.com/big-squid/go-keypairs"
-	"github.com/big-squid/go-keypairs/keyfetch/uncached"
+	"git.rootprojects.org/root/keypairs"
+	"git.rootprojects.org/root/keypairs/keyfetch/uncached"
 )
 
 // TODO should be ErrInvalidJWKURL

@@ -1,3 +1,3 @@
-module github.com/big-squid/go-keypairs
+module git.rootprojects.org/root/keypairs
 
 go 1.12

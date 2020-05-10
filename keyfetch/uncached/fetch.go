@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	keypairs "github.com/big-squid/go-keypairs"
+	"git.rootprojects.org/root/keypairs"
 )
 
 // OIDCJWKs gets the OpenID Connect configuration from the baseURL and then calls JWKs with the specified jwks_uri

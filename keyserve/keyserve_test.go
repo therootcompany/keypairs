@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	keypairs "github.com/big-squid/go-keypairs"
+	"git.rootprojects.org/root/keypairs"
 )
 
 func TestServeKeys(t *testing.T) {

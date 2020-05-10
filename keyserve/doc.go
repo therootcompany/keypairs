@@ -12,7 +12,7 @@ Basic Usage
 		"crypto/rand"
 		"time"
 
-		"github.com/big-squid/go-keypairs/keyserve"
+		"git.rootprojects.org/root/keypairs/keyserve"
 	)
 
 	key, _ := ecdsa.GenerateKey(elliptic.P256, rand.Reader)

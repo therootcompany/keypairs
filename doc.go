@@ -17,7 +17,7 @@ Convenience functions are available which will fetch keys
 (or retrieve them from cache) via OIDC, .well-known/jwks.json, and direct urls.
 All keys are cached by Thumbprint, as well as kid(@issuer), if available.
 
-	import "github.com/big-squid/go-keypairs/keyfetch"
+	import "git.rootprojects.org/root/keypairs/keyfetch"
 
 	pubs, err := keyfetch.OIDCJWKs("https://example.com/")
 	pubs, err := keyfetch.OIDCJWK(ThumbOrKeyID, "https://example.com/")

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	keypairs "github.com/big-squid/go-keypairs"
+	"git.rootprojects.org/root/keypairs"
 )
 
 func TestJWKs(t *testing.T) {

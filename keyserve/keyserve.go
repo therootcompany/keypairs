@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	keypairs "github.com/big-squid/go-keypairs"
+	"git.rootprojects.org/root/keypairs"
 )
 
 // DefaultExpiresIn is 3 days
