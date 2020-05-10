@@ -16,7 +16,7 @@ kid, err := keypairs.ThumbprintPublicKey(pub)
 
 # API Documentation
 
-See <https://godoc.org/github.com/big-squid/go-keypairs>
+See <https://pkg.go.dev/git.rootprojects.org/root/keypairs>
 
 # Philosophy
 
