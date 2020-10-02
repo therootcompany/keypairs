@@ -18,11 +18,15 @@ func main() {
 		return
 	}
 
+	// gen subcommand
+	args := os.Args[2:]
+
 	var privname string
 	var pubname string
-	flag.StringVar(&privname, "o", "", "private key file (should have .jwk.json or pkcs8.pem extension)")
-	flag.StringVar(&pubname, "pub", "", "public key file (should have .jwk.json or spki.pem extension)")
-	flag.Parse()
+	flags := flag.NewFlagSet("gen", flag.ExitOnError)
+	flags.StringVar(&privname, "o", "", "private key file (should have .jwk.json or pkcs8.pem extension)")
+	flags.StringVar(&pubname, "pub", "", "public key file (should have .jwk.json or spki.pem extension)")
+	flags.Parse(args)
 
 	priv := keypairs.NewDefaultPrivateKey()
 	marshalPriv(priv, privname)

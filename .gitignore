@@ -1,0 +1,5 @@
+/keypairs
+/dist/
+
+.DS_Store
+.*.sw*
