@@ -1,4 +1,4 @@
-# go-keypairs
+# [keypairs](https://git.rootprojects.org/root/keypairs)
 
 JSON Web Key (JWK) support and type safety lightly placed over top of Go's `crypto/ecdsa` and `crypto/rsa`
 
@@ -14,7 +14,7 @@ jwk, err := keypairs.MarshalJWKPublicKey(pub, time.Now().Add(2 * time.Day))
 kid, err := keypairs.ThumbprintPublicKey(pub)
 ```
 
-# API Documentation
+# GoDoc API Documentation
 
 See <https://pkg.go.dev/git.rootprojects.org/root/keypairs>
 
