@@ -10,23 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	mathrand "math/rand"
+	mathrand "math/rand" // to be used for good, not evil
 	"time"
 )
-
-// randReader may be overwritten for testing
-//var randReader io.Reader = rand.Reader
-
-//var randReader = rand.Reader
-
-// JWS is a parsed JWT, representation as signable/verifiable and human-readable parts
-type JWS struct {
-	Header    Object `json:"header"`    // JSON
-	Claims    Object `json:"claims"`    // JSON
-	Protected string `json:"protected"` // base64
-	Payload   string `json:"payload"`   // base64
-	Signature string `json:"signature"` // base64
-}
 
 // Object is a type alias representing generic JSON data
 type Object = map[string]interface{}
@@ -147,16 +133,6 @@ func claimsToPayload(claims Object) ([]byte, error) {
 	claims["exp"] = time.Now().Add(dur).Unix()
 
 	return json.Marshal(claims)
-}
-
-// JWSToJWT joins JWS parts into a JWT as {ProtectedHeader}.{SerializedPayload}.{Signature}.
-func JWSToJWT(jwt *JWS) string {
-	return fmt.Sprintf(
-		"%s.%s.%s",
-		jwt.Protected,
-		jwt.Payload,
-		jwt.Signature,
-	)
 }
 
 // Sign signs both RSA and ECDSA. Use `nil` or `crypto/rand.Reader` except for debugging.

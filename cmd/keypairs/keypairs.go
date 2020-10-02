@@ -30,13 +30,17 @@ func usage() {
 	fmt.Println("    version")
 	fmt.Println("    gen")
 	fmt.Println("    sign")
+	fmt.Println("    verify")
 	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Println("    keypairs gen -o key.jwk.json [--pub <public-key>]")
+	fmt.Println("")
 	fmt.Println("    keypairs sign --exp 15m key.jwk.json payload.json")
 	fmt.Println("    keypairs sign --exp 15m key.jwk.json '{ \"sub\": \"xxxx\" }'")
 	fmt.Println("")
-	//fmt.Println("  verify")
+	fmt.Println("    keypairs verify ./pub.jwk.json 'xxxx.yyyy.zzzz'")
+	// TODO fmt.Println("    keypairs verify --issuer https://example.com '{ \"sub\": \"xxxx\" }'")
+	fmt.Println("")
 }
 
 func ver() {
@@ -65,9 +69,11 @@ func main() {
 		os.Exit(0)
 		return
 	case "gen":
-		gen(args)
+		gen(args[2:])
 	case "sign":
-		sign(args)
+		sign(args[2:])
+	case "verify":
+		verify(args[2:])
 	default:
 		usage()
 		os.Exit(1)
@@ -94,42 +100,27 @@ func sign(args []string) {
 	flags := flag.NewFlagSet("sign", flag.ExitOnError)
 	flags.DurationVar(&exp, "exp", 0, "duration until token expires (Default 15m)")
 	flags.Parse(args)
-	if len(flags.Args()) <= 3 {
+	if len(flags.Args()) <= 1 {
 		fmt.Fprintf(os.Stderr, "Usage: keypairs sign --exp 1h <private PEM or JWK> ./payload.json\n")
 		os.Exit(1)
 	}
 
-	keyname := flags.Args()[2]
-	payload := flags.Args()[3]
+	keyname := flags.Args()[0]
+	payload := flags.Args()[1]
 
-	var key keypairs.PrivateKey = nil
-	b, err := ioutil.ReadFile(keyname)
+	key, err := readKey(keyname)
 	if nil != err {
-		var err2 error
-		key, err2 = keypairs.ParsePrivateKey([]byte(keyname))
-		if nil != err2 {
-			fmt.Fprintf(os.Stderr,
-				"could not read private key as file (or parse as string) %q: %s\n", keyname, err)
-		}
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 		return
 	}
-	if nil == key {
-		var err3 error
-		key, err3 = keypairs.ParsePrivateKey(b)
-		if nil != err3 {
-			fmt.Fprintf(os.Stderr,
-				"could not parse private key from file %q: %s\n", keyname, err3)
-			os.Exit(1)
-			return
-		}
-	}
 
 	if "" == payload {
+		// TODO should this be null? I forget
 		payload = "{}"
 	}
 
-	b, err = ioutil.ReadFile(payload)
+	b, err := ioutil.ReadFile(payload)
 	claims := map[string]interface{}{}
 	if nil != err {
 		var err2 error
@@ -167,8 +158,159 @@ func sign(args []string) {
 	}
 
 	b, _ = json.Marshal(&jws)
-	fmt.Printf("JWS:\n%s\n\n", indentJSON(b))
-	fmt.Printf("JWT:\n%s\n\n", keypairs.JWSToJWT(jws))
+	fmt.Fprintf(os.Stderr, "%s\n", indentJSON(b))
+	fmt.Fprintf(os.Stdout, "%s\n", keypairs.JWSToJWT(jws))
+}
+
+func verify(args []string) {
+	flags := flag.NewFlagSet("verify", flag.ExitOnError)
+	flags.Usage = func() {
+		fmt.Println("Usage: keypairs verify <public key> <jwt-or-jwt>")
+		fmt.Println("")
+		fmt.Println("    <public key>: a File or String of an EC or RSA key in JWK or PEM format")
+		fmt.Println("    <jwt-or-jws>: a JWT or JWS File or String, if JWS the payload must be Base64")
+		fmt.Println("")
+	}
+	flags.Parse(args)
+	if len(flags.Args()) <= 1 {
+		flags.Usage()
+		os.Exit(1)
+	}
+
+	pubname := flags.Args()[0]
+	payload := flags.Args()[1]
+
+	pub, err := readPub(pubname)
+	if nil != err {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+		return
+	}
+
+	jws, err := readJWS(payload)
+	if nil != err {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+		return
+	}
+
+	b, _ := json.Marshal(&jws)
+	fmt.Fprintf(os.Stdout, "%s\n", indentJSON(b))
+
+	errs := keypairs.VerifyClaims(pub, jws)
+	if nil != errs {
+		fmt.Fprintf(os.Stderr, "error:\n")
+		for _, err := range errs {
+			fmt.Fprintf(os.Stderr, "\t%v\n", err)
+		}
+		os.Exit(1)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Signature is Valid\n")
+}
+
+func readKey(keyname string) (keypairs.PrivateKey, error) {
+	var key keypairs.PrivateKey = nil
+
+	// Read as file
+	b, err := ioutil.ReadFile(keyname)
+	if nil != err {
+		// Tis not a file! Perhaps a string?
+		var err2 error
+		key, err2 = keypairs.ParsePrivateKey([]byte(keyname))
+		if nil != err2 {
+			// Neither a valid string. Blast!
+			return nil, fmt.Errorf(
+				"could not read private key as file (or parse as string) %q:\n%s",
+				keyname, err2,
+			)
+		}
+	}
+
+	if nil == key {
+		var err3 error
+		key, err3 = keypairs.ParsePrivateKey(b)
+		if nil != err3 {
+			return nil, fmt.Errorf(
+				"could not parse private key from file %q:\n%s",
+				keyname, err3,
+			)
+		}
+	}
+
+	return key, nil
+}
+
+func readPub(pubname string) (keypairs.PublicKey, error) {
+	var pub keypairs.PublicKey = nil
+
+	// Read as file
+	b, err := ioutil.ReadFile(pubname)
+	if nil != err {
+		// No file? Try as string!
+		var err2 error
+		pub, err2 = keypairs.ParsePublicKey([]byte(pubname))
+		if nil != err2 {
+			return nil, fmt.Errorf(
+				"could not read public key as file (or parse as string) %q:\n%w",
+				pubname, err,
+			)
+		}
+	}
+
+	// Oh, it was a file.
+	if nil == pub {
+		var err3 error
+		pub, err3 = keypairs.ParsePublicKey(b)
+		if nil != err3 {
+			return nil, fmt.Errorf(
+				"could not parse public key from file %q:\n%w",
+				pubname, err3,
+			)
+		}
+	}
+
+	return pub, nil
+}
+
+func readJWS(payload string) (*keypairs.JWS, error) {
+	// Is it a file?
+	b, err := ioutil.ReadFile(payload)
+	if nil != err {
+		// Or a JWS or JWS String!?
+		b = []byte(payload)
+	}
+
+	// Either way, we have some bytes now
+	jws := &keypairs.JWS{}
+	jwt := string(b)
+	jwsb := []byte(jwt)
+	if !strings.Contains(jwt, " \t\n{}[]") {
+		jws = keypairs.JWTToJWS(string(b))
+		if nil != jws {
+			b, _ = json.Marshal(jws)
+			jwsb = (b)
+		}
+	}
+
+	// And now we have a string that may be a JWS
+	if err := json.Unmarshal(jwsb, &jws); nil != err {
+		// Nope, it's not
+		return nil, fmt.Errorf(
+			"could not read signed payload from file or string as JWT or JWS %q:\n%w",
+			payload, err,
+		)
+	}
+
+	if err := jws.DecodeComponents(); nil != err {
+		// bah! so close!
+		return nil, fmt.Errorf(
+			"could not decode the JWS Header and Claims components: %w\n%s",
+			err, string(jwsb),
+		)
+	}
+
+	return jws, nil
 }
 
 func marshalPriv(key keypairs.PrivateKey, keyname string) {
