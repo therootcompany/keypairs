@@ -81,5 +81,5 @@ func indentJSON(b []byte) []byte {
 	m := map[string]interface{}{}
 	_ = json.Unmarshal(b, &m)
 	b, _ = json.MarshalIndent(&m, "", "  ")
-	return b
+	return append(b, '\n')
 }
