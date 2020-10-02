@@ -56,8 +56,8 @@ between the ASN.1, x509, PEM, and JWK formats.
 
 # LICENSE
 
-Copyright (c) 2020-present AJ ONeal
+Copyright (c) 2020-present AJ ONeal \
 Copyright (c) 2018-2019 Big Squid, Inc.
 
-This work is licensed under the terms of the MIT license.
+This work is licensed under the terms of the MIT license. \
 For a copy, see <https://opensource.org/licenses/MIT>.
