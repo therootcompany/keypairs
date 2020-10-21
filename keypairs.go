@@ -64,8 +64,8 @@ type PublicKeyTransitional interface {
 	Equal(x crypto.PublicKey) bool
 }
 
-// PublicKey thinly veils crypto.PublicKey for type safety
-type PublicKey interface {
+// PublicKeyDeprecated thinly veils crypto.PublicKey for type safety
+type PublicKeyDeprecated interface {
 	crypto.PublicKey
 	//Equal(x crypto.PublicKey) bool
 	//Thumbprint() string
@@ -149,13 +149,13 @@ func (p *RSAPublicKey) ExpiresAt() time.Time {
 }
 
 // NewPublicKey wraps a crypto.PublicKey to make it typesafe.
-func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
+func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKeyDeprecated {
 	_, ok := pub.(PublicKeyTransitional)
 	if !ok {
 		panic("Developer Error: not a crypto.PublicKey")
 	}
 
-	var k PublicKey
+	var k PublicKeyDeprecated
 	switch p := pub.(type) {
 	case *ecdsa.PublicKey:
 		eckey := &ECPublicKey{
@@ -186,9 +186,9 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 
 // MarshalJWKPublicKey outputs a JWK with its key id (kid) and an optional expiration,
 // making it suitable for use as an OIDC public key.
-func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
+func MarshalJWKPublicKey(key PublicKeyTransitional, exp ...time.Time) []byte {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
-	switch k := key.Key().(type) {
+	switch k := key.(type) {
 	case *rsa.PublicKey:
 		return MarshalRSAPublicKey(k, exp...)
 	case *ecdsa.PublicKey:
@@ -206,7 +206,7 @@ func Thumbprint(pub PublicKeyTransitional) string {
 }
 
 // ThumbprintPublicKey returns the SHA256 RFC-spec JWK thumbprint
-func ThumbprintPublicKey(pub PublicKey) string {
+func ThumbprintPublicKey(pub PublicKeyDeprecated) string {
 	return ThumbprintUntypedPublicKey(pub.Key().(PublicKeyTransitional))
 }
 
@@ -214,7 +214,7 @@ func ThumbprintPublicKey(pub PublicKey) string {
 // (but will still panic, to help you discover bugs in development rather than production).
 func ThumbprintUntypedPublicKey(pub crypto.PublicKey) string {
 	switch p := pub.(type) {
-	case PublicKey:
+	case PublicKeyDeprecated:
 		return ThumbprintUntypedPublicKey(p.Key().(PublicKeyTransitional))
 	case *ecdsa.PublicKey:
 		return ThumbprintECPublicKey(p)
@@ -379,7 +379,7 @@ func getPEMBytes(block []byte) ([][]byte, error) {
 
 // ParsePublicKey will try to parse the bytes you give it
 // in any of the supported formats: PEM, DER, PKIX/SPKI, PKCS1, x509 Certificate, and JWK
-func ParsePublicKey(block []byte) (PublicKey, error) {
+func ParsePublicKey(block []byte) (PublicKeyDeprecated, error) {
 	blocks, err := getPEMBytes(block)
 	if nil != err {
 		return nil, ErrParsePublicKey
@@ -406,11 +406,11 @@ func ParsePublicKey(block []byte) (PublicKey, error) {
 }
 
 // ParsePublicKeyString calls ParsePublicKey([]byte(key)) for all you lazy folk.
-func ParsePublicKeyString(block string) (PublicKey, error) {
+func ParsePublicKeyString(block string) (PublicKeyDeprecated, error) {
 	return ParsePublicKey([]byte(block))
 }
 
-func parsePublicKey(der []byte) (PublicKey, error) {
+func parsePublicKey(der []byte) (PublicKeyDeprecated, error) {
 	cert, err := x509.ParseCertificate(der)
 	if nil == err {
 		switch k := cert.PublicKey.(type) {
@@ -456,7 +456,7 @@ func parsePublicKey(der []byte) (PublicKey, error) {
 }
 
 // NewJWKPublicKey contstructs a PublicKey from the relevant pieces a map[string]string (generic JSON)
-func NewJWKPublicKey(m map[string]string) (PublicKey, error) {
+func NewJWKPublicKey(m map[string]string) (PublicKeyDeprecated, error) {
 	switch m["kty"] {
 	case "RSA":
 		return parseRSAPublicKey(m)
@@ -468,7 +468,7 @@ func NewJWKPublicKey(m map[string]string) (PublicKey, error) {
 }
 
 // ParseJWKPublicKey parses a JSON-encoded JWK and returns a PublicKey, or a (hopefully) helpful error message
-func ParseJWKPublicKey(b []byte) (PublicKey, error) {
+func ParseJWKPublicKey(b []byte) (PublicKeyDeprecated, error) {
 	// RSA and EC have "d" as a private part
 	if bytes.Contains(b, []byte(`"d"`)) {
 		return nil, ErrUnexpectedPrivateKey
@@ -477,7 +477,7 @@ func ParseJWKPublicKey(b []byte) (PublicKey, error) {
 }
 
 // ParseJWKPublicKeyString calls ParseJWKPublicKey([]byte(key)) for all you lazy folk.
-func ParseJWKPublicKeyString(s string) (PublicKey, error) {
+func ParseJWKPublicKeyString(s string) (PublicKeyDeprecated, error) {
 	if strings.Contains(s, `"d"`) {
 		return nil, ErrUnexpectedPrivateKey
 	}
@@ -485,7 +485,7 @@ func ParseJWKPublicKeyString(s string) (PublicKey, error) {
 }
 
 // DecodeJWKPublicKey stream-decodes a JSON-encoded JWK and returns a PublicKey, or a (hopefully) helpful error message
-func DecodeJWKPublicKey(r io.Reader) (PublicKey, error) {
+func DecodeJWKPublicKey(r io.Reader) (PublicKeyDeprecated, error) {
 	m := make(map[string]string)
 	if err := json.NewDecoder(r).Decode(&m); nil != err {
 		return nil, err
@@ -497,7 +497,7 @@ func DecodeJWKPublicKey(r io.Reader) (PublicKey, error) {
 }
 
 // the underpinnings of the parser as used by the typesafe wrappers
-func newJWKPublicKey(data interface{}) (PublicKey, error) {
+func newJWKPublicKey(data interface{}) (PublicKeyDeprecated, error) {
 	var m map[string]string
 
 	switch d := data.(type) {

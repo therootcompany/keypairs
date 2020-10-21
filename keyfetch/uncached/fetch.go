@@ -4,6 +4,8 @@ package uncached
 import (
 	"bytes"
 	"encoding/json"
+	"crypto/rsa"
+	"crypto/ecdsa"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -15,8 +17,17 @@ import (
 	"git.rootprojects.org/root/keypairs"
 )
 
+// URLishKey is TODO
+var URLishKey = "_kid_url"
+
+// JWKMapByID is TODO
+type JWKMapByID = map[string]map[string]string
+
+// PublicKeysMap is TODO
+type PublicKeysMap = map[string]keypairs.PublicKeyDeprecated
+
 // OIDCJWKs gets the OpenID Connect configuration from the baseURL and then calls JWKs with the specified jwks_uri
-func OIDCJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
+func OIDCJWKs(baseURL string) (JWKMapByID, PublicKeysMap, error) {
 	baseURL = normalizeBaseURL(baseURL)
 	oidcConf := struct {
 		JWKSURI string `json:"jwks_uri"`
@@ -37,7 +48,7 @@ func OIDCJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs
 }
 
 // WellKnownJWKs calls JWKs with baseURL + /.well-known/jwks.json as constructs the jwks_uri
-func WellKnownJWKs(baseURL string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
+func WellKnownJWKs(baseURL string) (JWKMapByID, PublicKeysMap, error) {
 	baseURL = normalizeBaseURL(baseURL)
 	url := baseURL + ".well-known/jwks.json"
 
@@ -45,9 +56,9 @@ func WellKnownJWKs(baseURL string) (map[string]map[string]string, map[string]key
 }
 
 // JWKs fetches and parses a jwks.json (assuming well-known format)
-func JWKs(jwksurl string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
-	keys := map[string]keypairs.PublicKey{}
-	maps := map[string]map[string]string{}
+func JWKs(jwksurl string) (JWKMapByID, PublicKeysMap, error) {
+	keys := PublicKeysMap{}
+	maps := JWKMapByID{}
 	resp := struct {
 		Keys []map[string]interface{} `json:"keys"`
 	}{
@@ -79,33 +90,39 @@ func JWKs(jwksurl string) (map[string]map[string]string, map[string]keypairs.Pub
 }
 
 // PEM fetches and parses a PEM (assuming well-known format)
-func PEM(pemurl string) (map[string]string, keypairs.PublicKey, error) {
-	var pub keypairs.PublicKey
+func PEM(pemurl string) (map[string]string, keypairs.PublicKeyTransitional, error) {
+	var pubd keypairs.PublicKeyDeprecated
 	if err := safeFetch(pemurl, func(body io.Reader) error {
 		pem, err := ioutil.ReadAll(body)
 		if nil != err {
 			return err
 		}
-		pub, err = keypairs.ParsePublicKey(pem)
-		return err
+		pubd, err = keypairs.ParsePublicKey(pem)
+		if nil != err {
+			return err
+		}
+		return nil
 	}); nil != err {
 		return nil, nil, err
 	}
 
 	jwk := map[string]interface{}{}
+	pub := pubd.Key().(keypairs.PublicKeyTransitional)
 	body := bytes.NewBuffer(keypairs.MarshalJWKPublicKey(pub))
 	decoder := json.NewDecoder(body)
 	decoder.UseNumber()
 	_ = decoder.Decode(&jwk)
 
 	m := getStringMap(jwk)
-	m["kid"] = pemurl
+	m["kid"] = keypairs.Thumbprint(pub)
+	// TODO is this just junk?
+	m[URLishKey] = pemurl
 
-	switch p := pub.(type) {
-	case *keypairs.ECPublicKey:
-		p.KID = pemurl
-	case *keypairs.RSAPublicKey:
-		p.KID = pemurl
+	switch pub.(type) {
+	case *ecdsa.PublicKey:
+		//p.KID = pemurl
+	case *rsa.PublicKey:
+		//p.KID = pemurl
 	default:
 		return nil, nil, errors.New("impossible key type")
 	}
@@ -114,7 +131,7 @@ func PEM(pemurl string) (map[string]string, keypairs.PublicKey, error) {
 }
 
 // Fetch retrieves a single JWK (plain, bare jwk) from a URL (off-spec)
-func Fetch(url string) (map[string]string, keypairs.PublicKey, error) {
+func Fetch(url string) (map[string]string, keypairs.PublicKeyDeprecated, error) {
 	var m map[string]interface{}
 	if err := safeFetch(url, func(body io.Reader) error {
 		decoder := json.NewDecoder(body)

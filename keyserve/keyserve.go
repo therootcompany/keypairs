@@ -39,7 +39,7 @@ var never = time.Time{}
 // Middleware holds your public keys and has http handler methods for OIDC and Auth0 JWKs
 type Middleware struct {
 	BaseURL   *url.URL
-	Keys      []keypairs.PublicKey
+	Keys      []keypairs.PublicKeyDeprecated
 	ExpiresIn time.Duration
 }
 
@@ -148,7 +148,7 @@ func (m *Middleware) Auth0PEM(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func marshalJWKs(keys []keypairs.PublicKey, exp2 time.Time) []string {
+func marshalJWKs(keys []keypairs.PublicKeyDeprecated, exp2 time.Time) []string {
 	jwks := make([]string, 0, 1)
 
 	for i := range keys {
@@ -163,7 +163,7 @@ func marshalJWKs(keys []keypairs.PublicKey, exp2 time.Time) []string {
 
 		// Note that you don't have to embed `iss` in the JWK because the client
 		// already has that info by virtue of getting to it in the first place.
-		jwk := string(keypairs.MarshalJWKPublicKey(key, exp))
+		jwk := string(keypairs.MarshalJWKPublicKey(key.Key().(keypairs.PublicKeyTransitional), exp))
 		jwks = append(jwks, jwk)
 	}
 

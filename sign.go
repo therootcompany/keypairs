@@ -26,7 +26,7 @@ func SignClaims(privkey PrivateKey, header Object, claims Object) (*JWS, error) 
 		//delete(header, "_seed")
 	}
 
-	protected, header, err := headerToProtected(NewPublicKey(privkey.Public()), header)
+	protected, header, err := headerToProtected(privkey.Public().(PublicKeyTransitional), header)
 	if nil != err {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func SignClaims(privkey PrivateKey, header Object, claims Object) (*JWS, error) 
 	}, nil
 }
 
-func headerToProtected(pub PublicKey, header Object) ([]byte, Object, error) {
+func headerToProtected(pub PublicKeyTransitional, header Object) ([]byte, Object, error) {
 	if nil == header {
 		header = Object{}
 	}
@@ -65,7 +65,7 @@ func headerToProtected(pub PublicKey, header Object) ([]byte, Object, error) {
 	// because that's all that's practical and well-supported.
 	// No security theatre here.
 	alg := "ES256"
-	switch pub.Key().(type) {
+	switch pub.(type) {
 	case *rsa.PublicKey:
 		alg = "RS256"
 	}
@@ -80,7 +80,7 @@ func headerToProtected(pub PublicKey, header Object) ([]byte, Object, error) {
 	// TODO what are the acceptable values? JWT. JWS? others?
 	header["typ"] = "JWT"
 	if _, ok := header["jwk"]; !ok {
-		thumbprint := ThumbprintPublicKey(pub)
+		thumbprint := ThumbprintPublicKey(NewPublicKey(pub))
 		kid, _ := header["kid"].(string)
 		if "" != kid && thumbprint != kid {
 			return nil, nil, errors.New("'kid' should be the key's thumbprint")

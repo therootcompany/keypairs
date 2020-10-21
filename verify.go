@@ -15,7 +15,7 @@ import (
 )
 
 // VerifyClaims will check the signature of a parsed JWT
-func VerifyClaims(pubkey PublicKey, jws *JWS) (errs []error) {
+func VerifyClaims(pubkey PublicKeyTransitional, jws *JWS) (errs []error) {
 	kid, _ := jws.Header["kid"].(string)
 	jwkmap, hasJWK := jws.Header["jwk"].(Object)
 	//var jwk JWK = nil
@@ -27,7 +27,7 @@ func VerifyClaims(pubkey PublicKey, jws *JWS) (errs []error) {
 		seed = int64(seedf64)
 	}
 
-	var pub PublicKey = nil
+	var pub PublicKeyTransitional = nil
 	if hasJWK {
 		pub, errs = selfsignCheck(jwkmap, errs)
 	} else {
@@ -72,8 +72,8 @@ func VerifyClaims(pubkey PublicKey, jws *JWS) (errs []error) {
 	return errs
 }
 
-func selfsignCheck(jwkmap Object, errs []error) (PublicKey, []error) {
-	var pub PublicKey = nil
+func selfsignCheck(jwkmap Object, errs []error) (PublicKeyTransitional, []error) {
+	var pub PublicKeyDeprecated = nil
 	log.Println("Security TODO: did not check jws.Claims[\"sub\"] against 'jwk'")
 	log.Println("Security TODO: did not check jws.Claims[\"iss\"]")
 	kty := jwkmap["kty"]
@@ -104,11 +104,11 @@ func selfsignCheck(jwkmap Object, errs []error) (PublicKey, []error) {
 		}
 	}
 
-	return pub, errs
+	return pub.Key().(PublicKeyTransitional), errs
 }
 
-func pubkeyCheck(pubkey PublicKey, kid string, opts *keyOptions, errs []error) (PublicKey, []error) {
-	var pub PublicKey = nil
+func pubkeyCheck(pubkey PublicKeyTransitional, kid string, opts *keyOptions, errs []error) (PublicKeyTransitional, []error) {
+	var pub PublicKeyTransitional = nil
 
 	if "" == kid {
 		err := errors.New("token should have 'kid' or 'jwk' in header to identify the public key")
@@ -130,7 +130,7 @@ func pubkeyCheck(pubkey PublicKey, kid string, opts *keyOptions, errs []error) (
 				return nil, errs
 			}
 			privkey := newPrivateKey(opts)
-			pub = NewPublicKey(privkey.Public())
+			pub = privkey.Public().(PublicKeyTransitional)
 			return pub, errs
 		}
 		err := errors.New("no matching public key")
@@ -140,7 +140,7 @@ func pubkeyCheck(pubkey PublicKey, kid string, opts *keyOptions, errs []error) (
 	}
 
 	if nil != pub && "" != kid {
-		if 1 != subtle.ConstantTimeCompare([]byte(kid), []byte(Thumbprint(pub.Key().(PublicKeyTransitional)))) {
+		if 1 != subtle.ConstantTimeCompare([]byte(kid), []byte(Thumbprint(pub))) {
 			err := errors.New("'kid' does not match the public key thumbprint")
 			errs = append(errs, err)
 		}
@@ -149,9 +149,9 @@ func pubkeyCheck(pubkey PublicKey, kid string, opts *keyOptions, errs []error) (
 }
 
 // Verify will check the signature of a hash
-func Verify(pubkey PublicKey, hash []byte, sig []byte) bool {
+func Verify(pubkey PublicKeyTransitional, hash []byte, sig []byte) bool {
 
-	switch pub := pubkey.Key().(type) {
+	switch pub := pubkey.(type) {
 	case *rsa.PublicKey:
 		//log.Printf("RSA VERIFY")
 		// TODO Size(key) to detect key size ?

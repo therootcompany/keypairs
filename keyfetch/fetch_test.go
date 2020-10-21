@@ -11,13 +11,14 @@ import (
 var pubkey keypairs.PublicKeyTransitional
 
 func TestCachesKey(t *testing.T) {
+	// TODO set KeyID() in cache
 	testCachesKey(t, "https://bigsquid.auth0.com/")
 	clear()
 	testCachesKey(t, "https://bigsquid.auth0.com")
 	// Get PEM
 	pubk3, err := PEM("https://bigsquid.auth0.com/pem")
 	if nil != err {
-		t.Fatal("Error fetching and caching key:", err)
+		t.Fatal("[0] Error fetching and caching key:", err)
 	}
 	thumb3 := keypairs.Thumbprint(pubk3)
 	thumb := keypairs.Thumbprint(pubkey)
@@ -62,7 +63,7 @@ func testCachesKey(t *testing.T, url string) {
 	// Get with caching
 	pubkey, err = OIDCJWK(thumb, url)
 	if nil != err {
-		t.Fatal("Error fetching and caching key:", err)
+		t.Fatal("[1] Error fetching and caching key:", err)
 	}
 
 	// Look in cache for each (and succeed)
@@ -74,9 +75,13 @@ func testCachesKey(t *testing.T, url string) {
 	thumb = keypairs.Thumbprint(pubkey)
 	if pub := Get(thumb, url); nil == pub {
 		t.Fatal("key was not properly cached by kid", pubkey)
-	} else {
-		t.Log("Key did not have an explicit KeyID")
 	}
+	// TODO
+	/*
+	if 0 == len(keyfetch.GetID(thumb)) {
+		t.Log("Key did not have an explicit KeyID", thumb)
+	}
+	*/
 
 	// Get again (should be sub-ms instant)
 	now := time.Now()

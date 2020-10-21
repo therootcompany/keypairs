@@ -105,7 +105,7 @@ func gen(args []string) {
 
 	key := keypairs.NewDefaultPrivateKey()
 	marshalPriv(key, keyname)
-	pub := keypairs.NewPublicKey(key.Public())
+	pub := key.Public().(keypairs.PublicKeyTransitional)
 	marshalPub(pub, pubname)
 }
 
@@ -255,33 +255,33 @@ func readKey(keyname string) (keypairs.PrivateKey, error) {
 	return key, nil
 }
 
-func readPub(pubname string) (keypairs.PublicKey, error) {
-	var pub keypairs.PublicKey = nil
+func readPub(pubname string) (keypairs.PublicKeyTransitional, error) {
+	var pub keypairs.PublicKeyTransitional = nil
 
 	// Read as file
 	b, err := ioutil.ReadFile(pubname)
 	if nil != err {
 		// No file? Try as string!
-		var err2 error
-		pub, err2 = keypairs.ParsePublicKey([]byte(pubname))
+		pub2, err2 := keypairs.ParsePublicKey([]byte(pubname))
 		if nil != err2 {
 			return nil, fmt.Errorf(
 				"could not read public key as file (or parse as string) %q:\n%w",
 				pubname, err,
 			)
 		}
+		pub = pub2.Key().(keypairs.PublicKeyTransitional)
 	}
 
 	// Oh, it was a file.
 	if nil == pub {
-		var err3 error
-		pub, err3 = keypairs.ParsePublicKey(b)
+		pub3, err3 := keypairs.ParsePublicKey(b)
 		if nil != err3 {
 			return nil, fmt.Errorf(
 				"could not parse public key from file %q:\n%w",
 				pubname, err3,
 			)
 		}
+		pub = pub3.Key().(keypairs.PublicKeyTransitional)
 	}
 
 	return pub, nil
@@ -351,7 +351,7 @@ func marshalPriv(key keypairs.PrivateKey, keyname string) {
 	ioutil.WriteFile(keyname, b, 0600)
 }
 
-func marshalPub(pub keypairs.PublicKey, pubname string) {
+func marshalPub(pub keypairs.PublicKeyTransitional, pubname string) {
 	var b []byte
 	if "" == pubname {
 		b = indentJSON(keypairs.MarshalJWKPublicKey(pub))
@@ -363,9 +363,9 @@ func marshalPub(pub keypairs.PublicKey, pubname string) {
 	if strings.HasSuffix(pubname, ".json") {
 		b = indentJSON(keypairs.MarshalJWKPublicKey(pub))
 	} else if strings.HasSuffix(pubname, ".pem") {
-		b, _ = keypairs.MarshalPEMPublicKey(pub.Key().(keypairs.PublicKeyTransitional))
+		b, _ = keypairs.MarshalPEMPublicKey(pub)
 	} else if strings.HasSuffix(pubname, ".der") {
-		b, _ = keypairs.MarshalDERPublicKey(pub.Key().(keypairs.PublicKeyTransitional))
+		b, _ = keypairs.MarshalDERPublicKey(pub)
 	}
 
 	ioutil.WriteFile(pubname, b, 0644)

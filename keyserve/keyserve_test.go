@@ -18,7 +18,7 @@ import (
 
 func TestServeKeys(t *testing.T) {
 	eckey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	pubs := []keypairs.PublicKey{
+	pubs := []keypairs.PublicKeyDeprecated{
 		keypairs.NewPublicKey(eckey.Public()),
 	}
 
@@ -42,8 +42,9 @@ func TestServeKeys(t *testing.T) {
 
 	go func() {
 		time.Sleep(15 * time.Second)
-		ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		h.Shutdown(ctx)
+		cancel()
 	}()
 
 	m := map[string]string{}
