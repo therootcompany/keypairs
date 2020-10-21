@@ -34,7 +34,7 @@ func usage() {
 	fmt.Println("    verify")
 	fmt.Println("")
 	fmt.Println("Examples:")
-	fmt.Println("    keypairs gen -o key.jwk.json [--pub <public-key>]")
+	fmt.Println("    keypairs gen --key key.jwk.json [--pub <public-key>]")
 	fmt.Println("")
 	fmt.Println("    keypairs sign --exp 15m key.jwk.json payload.json")
 	fmt.Println("    keypairs sign --exp 15m key.jwk.json '{ \"sub\": \"xxxx\" }'")

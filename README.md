@@ -1,5 +1,44 @@
 # [keypairs](https://git.rootprojects.org/root/keypairs)
 
+A cross-platform Command Line Tool and Golang Library that works
+with RSA, ECDSA, PEM, DER, JWK, and the JOSE suite.
+
+# Keypairs CLI
+
+Generates, signs, and verifies with NIST-strength asymmetric keys.
+
+```bash
+# Generate JSON Web Keys (JWKs)
+keypairs gen > key.jwk.json 2> pub.jwk.json
+
+# Generate PEM (or DER) Keys, by extension
+keypairs gen --key key.pem --pub pub.pem
+
+# Sign a payload
+keypairs sign key.jwk.json --exp 1h '{ "sub": "me@example.com" }' > token.jwt 2> sig.jws
+
+# Verify a signature
+keypairs verify pub.jwk.json token.jwt
+```
+
+Cheat Sheet at <https://webinstall.dev/keypairs>.
+
+### Install
+
+**Mac**, **Linux**:
+
+```bash
+curl -sS https://webinstall.dev/keypairs | bash
+```
+
+**Windows 10**:
+
+```bash
+curl.exe -A MS https://webinstall.dev/keypairs | powershell
+```
+
+# Keypairs Go Library
+
 JSON Web Key (JWK) support and type safety lightly placed over top of Go's `crypto/ecdsa` and `crypto/rsa`
 
 Useful for JWT, JOSE, etc.
