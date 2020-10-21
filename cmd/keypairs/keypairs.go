@@ -51,9 +51,9 @@ func ver() string {
 func main() {
 	args := os.Args[:]
 
-	if "help" == args[1] {
+	if len(args) < 2 || "help" == args[1] {
 		// top-level help
-		if 2 == len(args) {
+		if len(args) <= 2 {
 			usage()
 			os.Exit(0)
 			return
