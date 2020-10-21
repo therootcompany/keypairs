@@ -20,7 +20,8 @@ var (
 )
 
 func usage() {
-	ver()
+	fmt.Println(ver())
+	fmt.Println()
 	fmt.Println("Usage")
 	fmt.Printf(" %s <command> [flags] args...\n", name)
 	fmt.Println("")
@@ -43,8 +44,8 @@ func usage() {
 	fmt.Println("")
 }
 
-func ver() {
-	fmt.Printf("%s v%s %s (%s)\n", name, version, commit[:7], date)
+func ver() string {
+	return fmt.Sprintf("%s v%s (%s) %s", name, version, commit[:7], date)
 }
 
 func main() {
@@ -65,7 +66,7 @@ func main() {
 
 	switch args[1] {
 	case "version":
-		ver()
+		fmt.Println(ver())
 		os.Exit(0)
 		return
 	case "gen":
