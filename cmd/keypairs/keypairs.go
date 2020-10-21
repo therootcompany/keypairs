@@ -84,11 +84,24 @@ func main() {
 
 func gen(args []string) {
 	var keyname string
+	var keynameAlt string
+	//var keynameAlt2 string
 	var pubname string
 	flags := flag.NewFlagSet("gen", flag.ExitOnError)
-	flags.StringVar(&keyname, "o", "", "private key file (ex: key.jwk.json or key.pem)")
+	flags.StringVar(&keynameAlt, "o", "", "output file (alias of --key)")
+	//flags.StringVar(&keynameAlt2, "priv", "", "private key file (alias of --key)")
+	flags.StringVar(&keyname, "key", "", "private key file (ex: key.jwk.json or key.pem)")
 	flags.StringVar(&pubname, "pub", "", "public key file (ex: pub.jwk.json or pub.pem)")
 	flags.Parse(args)
+
+	if 0 == len(keyname) {
+		keyname = keynameAlt
+	}
+	/*
+		if 0 == len(keyname) {
+			keyname = keynameAlt2
+		}
+	*/
 
 	key := keypairs.NewDefaultPrivateKey()
 	marshalPriv(key, keyname)
