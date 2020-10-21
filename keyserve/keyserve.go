@@ -163,7 +163,8 @@ func marshalJWKs(keys []keypairs.PublicKeyDeprecated, exp2 time.Time) []string {
 
 		// Note that you don't have to embed `iss` in the JWK because the client
 		// already has that info by virtue of getting to it in the first place.
-		jwk := string(keypairs.MarshalJWKPublicKey(key.Key().(keypairs.PublicKeyTransitional), exp))
+		pub := key.Key()
+		jwk := string(keypairs.MarshalJWKPublicKey(pub, exp))
 		jwks = append(jwks, jwk)
 	}
 

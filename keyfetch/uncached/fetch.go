@@ -82,15 +82,15 @@ func JWKs(jwksurl string) (JWKMapByID, PublicKeysMap, error) {
 		if nil != err {
 			return nil, nil, err
 		}
-		keys[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = key
-		maps[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = m
+		keys[keypairs.Thumbprint(key.Key())] = key
+		maps[keypairs.Thumbprint(key.Key())] = m
 	}
 
 	return maps, keys, nil
 }
 
 // PEM fetches and parses a PEM (assuming well-known format)
-func PEM(pemurl string) (map[string]string, keypairs.PublicKeyTransitional, error) {
+func PEM(pemurl string) (map[string]string, keypairs.PublicKey, error) {
 	var pubd keypairs.PublicKeyDeprecated
 	if err := safeFetch(pemurl, func(body io.Reader) error {
 		pem, err := ioutil.ReadAll(body)
@@ -107,7 +107,7 @@ func PEM(pemurl string) (map[string]string, keypairs.PublicKeyTransitional, erro
 	}
 
 	jwk := map[string]interface{}{}
-	pub := pubd.Key().(keypairs.PublicKeyTransitional)
+	pub := pubd.Key()
 	body := bytes.NewBuffer(keypairs.MarshalJWKPublicKey(pub))
 	decoder := json.NewDecoder(body)
 	decoder.UseNumber()

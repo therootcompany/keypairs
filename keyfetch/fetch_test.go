@@ -8,7 +8,7 @@ import (
 	"git.rootprojects.org/root/keypairs/keyfetch/uncached"
 )
 
-var pubkey keypairs.PublicKeyTransitional
+var pubkey keypairs.PublicKey
 
 func TestCachesKey(t *testing.T) {
 	// TODO set KeyID() in cache
@@ -48,9 +48,9 @@ func testCachesKey(t *testing.T, url string) {
 		t.Fatal("Should discover 1 or more keys via", url)
 	}
 
-	var key keypairs.PublicKeyTransitional
+	var key keypairs.PublicKey
 	for i := range keys {
-		key = keys[i].Key().(keypairs.PublicKeyTransitional)
+		key = keys[i].Key()
 		break
 	}
 	thumb := keypairs.Thumbprint(key)

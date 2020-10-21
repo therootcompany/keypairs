@@ -59,8 +59,8 @@ type PrivateKey interface {
 	Equal(x crypto.PrivateKey) bool
 }
 
-// PublicKeyTransitional is so that v0.7.x can use golang v1.15 keys
-type PublicKeyTransitional interface {
+// PublicKey is so that v0.7.x can use golang v1.15 keys
+type PublicKey interface {
 	Equal(x crypto.PublicKey) bool
 }
 
@@ -70,7 +70,7 @@ type PublicKeyDeprecated interface {
 	//Equal(x crypto.PublicKey) bool
 	//Thumbprint() string
 	KeyID() string
-	Key() crypto.PublicKey
+	Key() PublicKey
 	ExpiresAt() time.Time
 }
 
@@ -104,7 +104,7 @@ func (p *ECPublicKey) KeyID() string {
 }
 
 // Key returns the PublicKey
-func (p *ECPublicKey) Key() crypto.PublicKey {
+func (p *ECPublicKey) Key() PublicKey {
 	return p.PublicKey
 }
 
@@ -134,7 +134,7 @@ func (p *RSAPublicKey) KeyID() string {
 }
 
 // Key returns the PublicKey
-func (p *RSAPublicKey) Key() crypto.PublicKey {
+func (p *RSAPublicKey) Key() PublicKey {
 	return p.PublicKey
 }
 
@@ -150,7 +150,7 @@ func (p *RSAPublicKey) ExpiresAt() time.Time {
 
 // NewPublicKey wraps a crypto.PublicKey to make it typesafe.
 func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKeyDeprecated {
-	_, ok := pub.(PublicKeyTransitional)
+	_, ok := pub.(PublicKey)
 	if !ok {
 		panic("Developer Error: not a crypto.PublicKey")
 	}
@@ -186,7 +186,7 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKeyDeprecated {
 
 // MarshalJWKPublicKey outputs a JWK with its key id (kid) and an optional expiration,
 // making it suitable for use as an OIDC public key.
-func MarshalJWKPublicKey(key PublicKeyTransitional, exp ...time.Time) []byte {
+func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
 	// thumbprint keys are alphabetically sorted and only include the necessary public parts
 	switch k := key.(type) {
 	case *rsa.PublicKey:
@@ -201,13 +201,13 @@ func MarshalJWKPublicKey(key PublicKeyTransitional, exp ...time.Time) []byte {
 }
 
 // Thumbprint returns the SHA256 RFC-spec JWK thumbprint
-func Thumbprint(pub PublicKeyTransitional) string {
+func Thumbprint(pub PublicKey) string {
 	return ThumbprintUntypedPublicKey(pub)
 }
 
 // ThumbprintPublicKey returns the SHA256 RFC-spec JWK thumbprint
 func ThumbprintPublicKey(pub PublicKeyDeprecated) string {
-	return ThumbprintUntypedPublicKey(pub.Key().(PublicKeyTransitional))
+	return ThumbprintUntypedPublicKey(pub.Key())
 }
 
 // ThumbprintUntypedPublicKey is a non-typesafe version of ThumbprintPublicKey
@@ -215,7 +215,7 @@ func ThumbprintPublicKey(pub PublicKeyDeprecated) string {
 func ThumbprintUntypedPublicKey(pub crypto.PublicKey) string {
 	switch p := pub.(type) {
 	case PublicKeyDeprecated:
-		return ThumbprintUntypedPublicKey(p.Key().(PublicKeyTransitional))
+		return ThumbprintUntypedPublicKey(p.Key())
 	case *ecdsa.PublicKey:
 		return ThumbprintECPublicKey(p)
 	case *rsa.PublicKey:

@@ -105,7 +105,7 @@ func gen(args []string) {
 
 	key := keypairs.NewDefaultPrivateKey()
 	marshalPriv(key, keyname)
-	pub := key.Public().(keypairs.PublicKeyTransitional)
+	pub := key.Public().(keypairs.PublicKey)
 	marshalPub(pub, pubname)
 }
 
@@ -255,8 +255,8 @@ func readKey(keyname string) (keypairs.PrivateKey, error) {
 	return key, nil
 }
 
-func readPub(pubname string) (keypairs.PublicKeyTransitional, error) {
-	var pub keypairs.PublicKeyTransitional = nil
+func readPub(pubname string) (keypairs.PublicKey, error) {
+	var pub keypairs.PublicKey = nil
 
 	// Read as file
 	b, err := ioutil.ReadFile(pubname)
@@ -269,7 +269,7 @@ func readPub(pubname string) (keypairs.PublicKeyTransitional, error) {
 				pubname, err,
 			)
 		}
-		pub = pub2.Key().(keypairs.PublicKeyTransitional)
+		pub = pub2.Key()
 	}
 
 	// Oh, it was a file.
@@ -281,7 +281,7 @@ func readPub(pubname string) (keypairs.PublicKeyTransitional, error) {
 				pubname, err3,
 			)
 		}
-		pub = pub3.Key().(keypairs.PublicKeyTransitional)
+		pub = pub3.Key()
 	}
 
 	return pub, nil
@@ -351,7 +351,7 @@ func marshalPriv(key keypairs.PrivateKey, keyname string) {
 	ioutil.WriteFile(keyname, b, 0600)
 }
 
-func marshalPub(pub keypairs.PublicKeyTransitional, pubname string) {
+func marshalPub(pub keypairs.PublicKey, pubname string) {
 	var b []byte
 	if "" == pubname {
 		b = indentJSON(keypairs.MarshalJWKPublicKey(pub))

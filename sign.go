@@ -26,7 +26,7 @@ func SignClaims(privkey PrivateKey, header Object, claims Object) (*JWS, error) 
 		//delete(header, "_seed")
 	}
 
-	protected, header, err := headerToProtected(privkey.Public().(PublicKeyTransitional), header)
+	protected, header, err := headerToProtected(privkey.Public().(PublicKey), header)
 	if nil != err {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func SignClaims(privkey PrivateKey, header Object, claims Object) (*JWS, error) 
 	}, nil
 }
 
-func headerToProtected(pub PublicKeyTransitional, header Object) ([]byte, Object, error) {
+func headerToProtected(pub PublicKey, header Object) ([]byte, Object, error) {
 	if nil == header {
 		header = Object{}
 	}

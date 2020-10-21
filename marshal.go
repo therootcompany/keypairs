@@ -13,7 +13,7 @@ import (
 )
 
 // MarshalPEMPublicKey outputs the given public key as JWK
-func MarshalPEMPublicKey(pubkey PublicKeyTransitional) ([]byte, error) {
+func MarshalPEMPublicKey(pubkey PublicKey) ([]byte, error) {
 	block, err := marshalDERPublicKey(pubkey)
 	if nil != err {
 		return nil, err
@@ -22,7 +22,7 @@ func MarshalPEMPublicKey(pubkey PublicKeyTransitional) ([]byte, error) {
 }
 
 // MarshalDERPublicKey outputs the given public key as JWK
-func MarshalDERPublicKey(pubkey PublicKeyTransitional) ([]byte, error) {
+func MarshalDERPublicKey(pubkey PublicKey) ([]byte, error) {
 	block, err := marshalDERPublicKey(pubkey)
 	if nil != err {
 		return nil, err
@@ -31,7 +31,7 @@ func MarshalDERPublicKey(pubkey PublicKeyTransitional) ([]byte, error) {
 }
 
 // marshalDERPublicKey outputs the given public key as JWK
-func marshalDERPublicKey(pubkey PublicKeyTransitional) (*pem.Block, error) {
+func marshalDERPublicKey(pubkey PublicKey) (*pem.Block, error) {
 
 	var der []byte
 	var typ string
