@@ -8,19 +8,21 @@ import (
 	"git.rootprojects.org/root/keypairs/keyfetch/uncached"
 )
 
-var pubkey keypairs.PublicKey
+var pubkey keypairs.PublicKeyTransitional
 
 func TestCachesKey(t *testing.T) {
 	testCachesKey(t, "https://bigsquid.auth0.com/")
 	clear()
 	testCachesKey(t, "https://bigsquid.auth0.com")
 	// Get PEM
-	k3, err := PEM("https://bigsquid.auth0.com/pem")
+	pubk3, err := PEM("https://bigsquid.auth0.com/pem")
 	if nil != err {
 		t.Fatal("Error fetching and caching key:", err)
 	}
-	if k3.Thumbprint() != pubkey.Thumbprint() {
-		t.Fatal("Error got different thumbprint for different versions of the same key:", err)
+	thumb3 := keypairs.Thumbprint(pubk3)
+	thumb := keypairs.Thumbprint(pubkey)
+	if thumb3 != thumb {
+		t.Fatalf("Error got different thumbprint for different versions of the same key %q != %q: %v", thumb3, thumb, err)
 	}
 	clear()
 	testCachesKey(t, "https://big-squid.github.io/")
@@ -45,12 +47,12 @@ func testCachesKey(t *testing.T, url string) {
 		t.Fatal("Should discover 1 or more keys via", url)
 	}
 
-	var key keypairs.PublicKey
+	var key keypairs.PublicKeyTransitional
 	for i := range keys {
-		key = keys[i]
+		key = keys[i].Key().(keypairs.PublicKeyTransitional)
 		break
 	}
-	thumb := key.Thumbprint()
+	thumb := keypairs.Thumbprint(key)
 
 	// Look in cache for each (and fail)
 	if pub := Get(thumb, ""); nil != pub {
@@ -67,10 +69,11 @@ func testCachesKey(t *testing.T, url string) {
 	if pub := Get(thumb, ""); nil == pub {
 		t.Fatal("key was not properly cached by thumbprint", thumb)
 	}
-	if "" != pubkey.KeyID() {
-		if pub := Get(pubkey.KeyID(), url); nil == pub {
-			t.Fatal("key was not properly cached by kid", pubkey.KeyID())
-		}
+
+	// TODO thumb / id mapping
+	thumb = keypairs.Thumbprint(pubkey)
+	if pub := Get(thumb, url); nil == pub {
+		t.Fatal("key was not properly cached by kid", pubkey)
 	} else {
 		t.Log("Key did not have an explicit KeyID")
 	}
@@ -86,8 +89,10 @@ func testCachesKey(t *testing.T, url string) {
 	}
 
 	// Sanity check that the kid and thumb match
-	if key.KeyID() != pubkey.KeyID() || key.Thumbprint() != pubkey.Thumbprint() {
-		t.Fatal("SANITY: KeyIDs or Thumbprints do not match:", key.KeyID(), pubkey.KeyID(), key.Thumbprint(), pubkey.Thumbprint())
+	if !key.Equal(pubkey) || keypairs.Thumbprint(key) != keypairs.Thumbprint(pubkey) {
+		t.Fatalf("SANITY: [todo: KeyIDs or] Thumbprints do not match:\n%q != %q\n%q != %q",
+			keypairs.Thumbprint(key), keypairs.Thumbprint(pubkey),
+			keypairs.Thumbprint(key), keypairs.Thumbprint(pubkey))
 	}
 
 	// Get 404

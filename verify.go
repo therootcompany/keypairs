@@ -140,7 +140,7 @@ func pubkeyCheck(pubkey PublicKey, kid string, opts *keyOptions, errs []error) (
 	}
 
 	if nil != pub && "" != kid {
-		if 1 != subtle.ConstantTimeCompare([]byte(kid), []byte(pub.Thumbprint())) {
+		if 1 != subtle.ConstantTimeCompare([]byte(kid), []byte(Thumbprint(pub.Key().(PublicKeyTransitional)))) {
 			err := errors.New("'kid' does not match the public key thumbprint")
 			errs = append(errs, err)
 		}

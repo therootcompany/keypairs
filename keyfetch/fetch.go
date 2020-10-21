@@ -25,8 +25,8 @@ import (
 
 // TODO should be ErrInvalidJWKURL
 
-// EInvalidJWKURL means that the url did not provide JWKs
-var EInvalidJWKURL = errors.New("url does not lead to valid JWKs")
+// ErrInvalidJWKURL means that the url did not provide JWKs
+var ErrInvalidJWKURL = errors.New("url does not lead to valid JWKs")
 
 // KeyCache is an in-memory key cache
 var KeyCache = map[string]CachableKey{}
@@ -94,7 +94,7 @@ func OIDCJWKs(baseURL string) (PublicKeysMap, error) {
 }
 
 // OIDCJWK fetches baseURL + ".well-known/openid-configuration" and then returns the key matching kid (or thumbprint)
-func OIDCJWK(kidOrThumb, iss string) (keypairs.PublicKey, error) {
+func OIDCJWK(kidOrThumb, iss string) (keypairs.PublicKeyTransitional, error) {
 	return immediateOneOrFetch(kidOrThumb, iss, uncached.OIDCJWKs)
 }
 
@@ -110,7 +110,7 @@ func WellKnownJWKs(kidOrThumb, iss string) (PublicKeysMap, error) {
 }
 
 // WellKnownJWK fetches baseURL + ".well-known/jwks.json" and returns the key matching kid (or thumbprint)
-func WellKnownJWK(kidOrThumb, iss string) (keypairs.PublicKey, error) {
+func WellKnownJWK(kidOrThumb, iss string) (keypairs.PublicKeyTransitional, error) {
 	return immediateOneOrFetch(kidOrThumb, iss, uncached.WellKnownJWKs)
 }
 
@@ -128,12 +128,12 @@ func JWKs(jwksurl string) (PublicKeysMap, error) {
 }
 
 // JWK tries to return a key from cache, falling back to the /.well-known/jwks.json of the issuer
-func JWK(kidOrThumb, iss string) (keypairs.PublicKey, error) {
+func JWK(kidOrThumb, iss string) (keypairs.PublicKeyTransitional, error) {
 	return immediateOneOrFetch(kidOrThumb, iss, uncached.JWKs)
 }
 
 // PEM tries to return a key from cache, falling back to the specified PEM url
-func PEM(url string) (keypairs.PublicKey, error) {
+func PEM(url string) (keypairs.PublicKeyTransitional, error) {
 	// url is kid in this case
 	return immediateOneOrFetch(url, url, func(string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
 		m, key, err := uncached.PEM(url)
@@ -143,11 +143,11 @@ func PEM(url string) (keypairs.PublicKey, error) {
 
 		// put in a map, just for caching
 		maps := map[string]map[string]string{}
-		maps[key.Thumbprint()] = m
+		maps[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = m
 		maps[url] = m
 
 		keys := map[string]keypairs.PublicKey{}
-		keys[key.Thumbprint()] = key
+		keys[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = key
 		keys[url] = key
 
 		return maps, keys, nil
@@ -155,7 +155,7 @@ func PEM(url string) (keypairs.PublicKey, error) {
 }
 
 // Fetch returns a key from cache, falling back to an exact url as the "issuer"
-func Fetch(url string) (keypairs.PublicKey, error) {
+func Fetch(url string) (keypairs.PublicKeyTransitional, error) {
 	// url is kid in this case
 	return immediateOneOrFetch(url, url, func(string) (map[string]map[string]string, map[string]keypairs.PublicKey, error) {
 		m, key, err := uncached.Fetch(url)
@@ -165,10 +165,10 @@ func Fetch(url string) (keypairs.PublicKey, error) {
 
 		// put in a map, just for caching
 		maps := map[string]map[string]string{}
-		maps[key.Thumbprint()] = m
+		maps[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = m
 
 		keys := map[string]keypairs.PublicKey{}
-		keys[key.Thumbprint()] = key
+		keys[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = key
 
 		return maps, keys, nil
 	})
@@ -210,7 +210,7 @@ func get(kidOrThumb, iss string) *CachableKey {
 	return nil
 }
 
-func immediateOneOrFetch(kidOrThumb, iss string, fetcher myfetcher) (keypairs.PublicKey, error) {
+func immediateOneOrFetch(kidOrThumb, iss string, fetcher myfetcher) (keypairs.PublicKeyTransitional, error) {
 	now := time.Now()
 	key := get(kidOrThumb, iss)
 
@@ -223,12 +223,12 @@ func immediateOneOrFetch(kidOrThumb, iss string, fetcher myfetcher) (keypairs.Pu
 		go fetchAndSelect(kidOrThumb, iss, fetcher)
 	}
 
-	return key.Key, nil
+	return key.Key.Key().(keypairs.PublicKeyTransitional), nil
 }
 
 type myfetcher func(string) (map[string]map[string]string, map[string]keypairs.PublicKey, error)
 
-func fetchAndSelect(id, baseURL string, fetcher myfetcher) (keypairs.PublicKey, error) {
+func fetchAndSelect(id, baseURL string, fetcher myfetcher) (keypairs.PublicKeyTransitional, error) {
 	maps, keys, err := fetcher(baseURL)
 	if nil != err {
 		return nil, err
@@ -238,12 +238,12 @@ func fetchAndSelect(id, baseURL string, fetcher myfetcher) (keypairs.PublicKey, 
 	for i := range keys {
 		key := keys[i]
 
-		if id == key.Thumbprint() {
-			return key, nil
+		if id == keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional)) {
+			return key.Key().(keypairs.PublicKeyTransitional), nil
 		}
 
 		if id == key.KeyID() {
-			return key, nil
+			return key.Key().(keypairs.PublicKeyTransitional), nil
 		}
 	}
 
@@ -287,7 +287,7 @@ func cacheKey(kid, iss, expstr string, pub keypairs.PublicKey) error {
 		Expiry: expiry,
 	}
 	// Since thumbprints are crypto secure, iss isn't needed
-	thumb := pub.Thumbprint()
+	thumb := keypairs.Thumbprint(pub.Key().(keypairs.PublicKeyTransitional))
 	KeyCache[thumb] = CachableKey{
 		Key:    pub,
 		Expiry: expiry,

@@ -71,8 +71,8 @@ func JWKs(jwksurl string) (map[string]map[string]string, map[string]keypairs.Pub
 		if nil != err {
 			return nil, nil, err
 		}
-		keys[key.Thumbprint()] = key
-		maps[key.Thumbprint()] = m
+		keys[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = key
+		maps[keypairs.Thumbprint(key.Key().(keypairs.PublicKeyTransitional))] = m
 	}
 
 	return maps, keys, nil

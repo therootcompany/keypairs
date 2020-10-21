@@ -363,9 +363,9 @@ func marshalPub(pub keypairs.PublicKey, pubname string) {
 	if strings.HasSuffix(pubname, ".json") {
 		b = indentJSON(keypairs.MarshalJWKPublicKey(pub))
 	} else if strings.HasSuffix(pubname, ".pem") {
-		b, _ = keypairs.MarshalPEMPublicKey(pub)
+		b, _ = keypairs.MarshalPEMPublicKey(pub.Key().(keypairs.PublicKeyTransitional))
 	} else if strings.HasSuffix(pubname, ".der") {
-		b, _ = keypairs.MarshalDERPublicKey(pub)
+		b, _ = keypairs.MarshalDERPublicKey(pub.Key().(keypairs.PublicKeyTransitional))
 	}
 
 	ioutil.WriteFile(pubname, b, 0644)

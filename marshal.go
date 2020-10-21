@@ -1,7 +1,6 @@
 package keypairs
 
 import (
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
@@ -14,7 +13,7 @@ import (
 )
 
 // MarshalPEMPublicKey outputs the given public key as JWK
-func MarshalPEMPublicKey(pubkey crypto.PublicKey) ([]byte, error) {
+func MarshalPEMPublicKey(pubkey PublicKeyTransitional) ([]byte, error) {
 	block, err := marshalDERPublicKey(pubkey)
 	if nil != err {
 		return nil, err
@@ -23,7 +22,7 @@ func MarshalPEMPublicKey(pubkey crypto.PublicKey) ([]byte, error) {
 }
 
 // MarshalDERPublicKey outputs the given public key as JWK
-func MarshalDERPublicKey(pubkey crypto.PublicKey) ([]byte, error) {
+func MarshalDERPublicKey(pubkey PublicKeyTransitional) ([]byte, error) {
 	block, err := marshalDERPublicKey(pubkey)
 	if nil != err {
 		return nil, err
@@ -32,7 +31,7 @@ func MarshalDERPublicKey(pubkey crypto.PublicKey) ([]byte, error) {
 }
 
 // marshalDERPublicKey outputs the given public key as JWK
-func marshalDERPublicKey(pubkey crypto.PublicKey) (*pem.Block, error) {
+func marshalDERPublicKey(pubkey PublicKeyTransitional) (*pem.Block, error) {
 
 	var der []byte
 	var typ string

@@ -3,7 +3,6 @@ package keypairs
 import (
 	"bytes"
 	"crypto"
-	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -57,12 +56,19 @@ const ErrDevBadKeyType = "[Developer Error] crypto.PublicKey and crypto.PrivateK
 // PrivateKey is a zero-cost typesafe substitue for crypto.PrivateKey
 type PrivateKey interface {
 	Public() crypto.PublicKey
+	Equal(x crypto.PrivateKey) bool
+}
+
+// PublicKeyTransitional is so that v0.7.x can use golang v1.15 keys
+type PublicKeyTransitional interface {
+	Equal(x crypto.PublicKey) bool
 }
 
 // PublicKey thinly veils crypto.PublicKey for type safety
 type PublicKey interface {
 	crypto.PublicKey
-	Thumbprint() string
+	//Equal(x crypto.PublicKey) bool
+	//Thumbprint() string
 	KeyID() string
 	Key() crypto.PublicKey
 	ExpiresAt() time.Time
@@ -85,6 +91,11 @@ type RSAPublicKey struct {
 // Thumbprint returns a JWK thumbprint. See https://stackoverflow.com/questions/42588786/how-to-fingerprint-a-jwk
 func (p *ECPublicKey) Thumbprint() string {
 	return ThumbprintUntypedPublicKey(p.PublicKey)
+}
+
+// Equal returns true if the public key is equal.
+func (p *ECPublicKey) Equal(x crypto.PublicKey) bool {
+	return p.PublicKey.Equal(x)
 }
 
 // KeyID returns the JWK `kid`, which will be the Thumbprint for keys generated with this library
@@ -112,6 +123,11 @@ func (p *RSAPublicKey) Thumbprint() string {
 	return ThumbprintUntypedPublicKey(p.PublicKey)
 }
 
+// Equal returns true if the public key is equal.
+func (p *RSAPublicKey) Equal(x crypto.PublicKey) bool {
+	return p.PublicKey.Equal(x)
+}
+
 // KeyID returns the JWK `kid`, which will be the Thumbprint for keys generated with this library
 func (p *RSAPublicKey) KeyID() string {
 	return p.KID
@@ -134,6 +150,11 @@ func (p *RSAPublicKey) ExpiresAt() time.Time {
 
 // NewPublicKey wraps a crypto.PublicKey to make it typesafe.
 func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
+	_, ok := pub.(PublicKeyTransitional)
+	if !ok {
+		panic("Developer Error: not a crypto.PublicKey")
+	}
+
 	var k PublicKey
 	switch p := pub.(type) {
 	case *ecdsa.PublicKey:
@@ -156,14 +177,6 @@ func NewPublicKey(pub crypto.PublicKey, kid ...string) PublicKey {
 			rsakey.KID = ThumbprintRSAPublicKey(p)
 		}
 		k = rsakey
-	case *ecdsa.PrivateKey:
-		panic(errors.New(ErrDevSwapPrivatePublic))
-	case *rsa.PrivateKey:
-		panic(errors.New(ErrDevSwapPrivatePublic))
-	case *dsa.PublicKey:
-		panic(ErrInvalidPublicKey)
-	case *dsa.PrivateKey:
-		panic(ErrInvalidPrivateKey)
 	default:
 		panic(fmt.Errorf(ErrDevBadKeyType, pub))
 	}
@@ -180,8 +193,6 @@ func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
 		return MarshalRSAPublicKey(k, exp...)
 	case *ecdsa.PublicKey:
 		return MarshalECPublicKey(k, exp...)
-	case *dsa.PublicKey:
-		panic(ErrInvalidPublicKey)
 	default:
 		// this is unreachable because we know the types that we pass in
 		log.Printf("keytype: %t, %+v\n", key, key)
@@ -189,9 +200,14 @@ func MarshalJWKPublicKey(key PublicKey, exp ...time.Time) []byte {
 	}
 }
 
+// Thumbprint returns the SHA256 RFC-spec JWK thumbprint
+func Thumbprint(pub PublicKeyTransitional) string {
+	return ThumbprintUntypedPublicKey(pub)
+}
+
 // ThumbprintPublicKey returns the SHA256 RFC-spec JWK thumbprint
 func ThumbprintPublicKey(pub PublicKey) string {
-	return ThumbprintUntypedPublicKey(pub.Key())
+	return ThumbprintUntypedPublicKey(pub.Key().(PublicKeyTransitional))
 }
 
 // ThumbprintUntypedPublicKey is a non-typesafe version of ThumbprintPublicKey
@@ -199,7 +215,7 @@ func ThumbprintPublicKey(pub PublicKey) string {
 func ThumbprintUntypedPublicKey(pub crypto.PublicKey) string {
 	switch p := pub.(type) {
 	case PublicKey:
-		return ThumbprintUntypedPublicKey(p.Key())
+		return ThumbprintUntypedPublicKey(p.Key().(PublicKeyTransitional))
 	case *ecdsa.PublicKey:
 		return ThumbprintECPublicKey(p)
 	case *rsa.PublicKey:
