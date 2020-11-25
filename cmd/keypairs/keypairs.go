@@ -189,7 +189,7 @@ func inspect(args []string) {
 	flags := flag.NewFlagSet("inspect", flag.ExitOnError)
 	flags.BoolVar(&verbose, "verbose", true, "print extra info")
 	flags.Usage = func() {
-		fmt.Println("Usage: keypairs inspect <jwt-or-jwt>")
+		fmt.Println("Usage: keypairs inspect --verbose <jwt-or-jwt>")
 		fmt.Println("")
 		fmt.Println("    <jwt-or-jws>: a JWT or JWS File or String, if JWS the payload must be Base64")
 		fmt.Println("")
